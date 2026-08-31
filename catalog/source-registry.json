@@ -1,0 +1,91 @@
+{
+  "registry_version": "1.0.0",
+  "retrieved_at": "2026-08-30T19:23:54Z",
+  "sources": [
+    {
+      "source_id": "yale-ms408-iiif-manifest-2002046",
+      "role": "authoritative-image-manifest",
+      "title": "Beinecke MS 408 IIIF Presentation manifest",
+      "version": "retrieved-2026-08-30",
+      "uri": "https://collections.library.yale.edu/manifests/2002046",
+      "media_type": "application/json",
+      "sha256": "317d58fd9ea90392a83d9858a91eada3d0b41416a3c835857dc0154bd123a309",
+      "attribution": "Beinecke Rare Book and Manuscript Library, Yale University, Beinecke MS 408",
+      "rights": {
+        "status": "review-required",
+        "license_expression": null,
+        "terms_uri": "https://library.yale.edu/policies/reuse",
+        "distribution": "metadata-only",
+        "note": "No top-level rights URI was present in the retrieved manifest. Obtain written bulk-retrieval and redistribution guidance before mirroring images."
+      }
+    },
+    {
+      "source_id": "voynich-zl-3b-ivtff",
+      "role": "primary-diplomatic-transcription",
+      "title": "Zandbergen-Landini transliteration",
+      "version": "3b (2025-05-13)",
+      "uri": "https://www.voynich.nu/data/ZL3b-n.txt",
+      "media_type": "text/plain",
+      "sha256": "bf5b6d4ac1e3a51b1847a9c388318d609020441ccd56984c901c32b09beccafc",
+      "attribution": "René Zandbergen and Gabriel Landini; acknowledge https://voynich.nu/",
+      "rights": {
+        "status": "declared-on-host-page",
+        "license_expression": "CC0-1.0",
+        "terms_uri": "https://www.voynich.nu/roadmap.html",
+        "distribution": "allowed-with-notice",
+        "note": "The host legal statement applies CC0 to collected transliterations; the file itself has no embedded SPDX notice."
+      }
+    },
+    {
+      "source_id": "voynich-gc-2a-ivtff",
+      "role": "independent-sensitivity-transcription",
+      "title": "Glen Claston v101 transliteration",
+      "version": "2a (modified 2025-06-25)",
+      "uri": "https://www.voynich.nu/data/GC2a-n.txt",
+      "media_type": "text/plain",
+      "sha256": "b09570cb6c993bc2d87134d115e60a978650a8a6495483ddbb1f6005a586096f",
+      "attribution": "Glen Claston; hosted by René Zandbergen; acknowledge https://voynich.nu/",
+      "rights": {
+        "status": "declared-on-host-page",
+        "license_expression": "CC0-1.0",
+        "terms_uri": "https://www.voynich.nu/roadmap.html",
+        "distribution": "allowed-with-notice",
+        "note": "The host legal statement applies CC0 to collected transliterations; the file itself has no embedded SPDX notice."
+      }
+    },
+    {
+      "source_id": "voynich-it-2a-ivtff",
+      "role": "historical-sensitivity-transcription",
+      "title": "IVTFF conversion of the Takahashi transcription from the Landini-Stolfi interlinear file",
+      "version": "2a (modified 2025-06-25)",
+      "uri": "https://www.voynich.nu/data/IT2a-n.txt",
+      "media_type": "text/plain",
+      "sha256": "7f27a8b0feed8f6de0a99900df6bf912dd1d295c38e5f830bac8b41c3f536fb5",
+      "attribution": "Takeshi Takahashi and Landini-Stolfi interlinear contributors; hosted by René Zandbergen; acknowledge https://voynich.nu/",
+      "rights": {
+        "status": "declared-on-host-page",
+        "license_expression": "CC0-1.0",
+        "terms_uri": "https://www.voynich.nu/roadmap.html",
+        "distribution": "allowed-with-notice",
+        "note": "Represents Takahashi's 1999 state as preserved in LSI, not the latest separate-page TT edition."
+      }
+    },
+    {
+      "source_id": "ivtff-specification-2-0-2",
+      "role": "format-specification",
+      "title": "Intermediate Voynich Transliteration File Format",
+      "version": "format 2.0.1, document issue 2.0.2 (2025-07-08)",
+      "uri": "https://www.voynich.nu/software/ivtt/IVTFF_format.pdf",
+      "media_type": "application/pdf",
+      "sha256": "7ac9c4a82064763cac8767cca6f661cc4e1b4503ab9342acc03032ddb6939d49",
+      "attribution": "René Zandbergen; acknowledge https://voynich.nu/",
+      "rights": {
+        "status": "permission-statement-on-host-page",
+        "license_expression": null,
+        "terms_uri": "https://www.voynich.nu/roadmap.html",
+        "distribution": "metadata-only",
+        "note": "Use the published format to create an independent parser; do not assume the separately downloadable IVTT source code has an open-source license."
+      }
+    }
+  ]
+}

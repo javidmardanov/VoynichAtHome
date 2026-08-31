@@ -1,0 +1,14 @@
+.DS_Store
+.pytest_cache/
+.ruff_cache/
+.venv/
+__pycache__/
+*.egg-info/
+dist/
+build/
+
+# Corpus payloads are fetched into a local, rights-aware cache. Only manifests,
+# checksums, and tiny synthetic fixtures belong in Git.
+data/cache/
+data/raw/
+data/derived/

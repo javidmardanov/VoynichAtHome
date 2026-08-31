@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0.0",
+  "controls": [
+    {
+      "control_id": "positive-caesar-7",
+      "class": "positive",
+      "description": "Recover a disclosed Caesar shift of seven from the toy fixture."
+    },
+    {
+      "control_id": "near-positive-noisy-caesar",
+      "class": "near-positive",
+      "description": "Reserved fixture with deterministic separator noise."
+    },
+    {
+      "control_id": "negative-shuffled-text",
+      "class": "negative",
+      "description": "Reserved character-preserving shuffle on which the worker must not claim exact recovery."
+    },
+    {
+      "control_id": "adversarial-flexible-gloss",
+      "class": "adversarial",
+      "description": "Reserved over-parameterized mapping that can fit discovery text but must fail confirmation."
+    },
+    {
+      "control_id": "implementation-checkpoint-restart",
+      "class": "implementation",
+      "description": "Interrupted and uninterrupted execution must produce identical output bytes."
+    }
+  ],
+  "note": "Only the positive toy control is executable in this foundation branch; the others specify required benchmark classes."
+}
