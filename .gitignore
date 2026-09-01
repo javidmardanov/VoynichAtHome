@@ -1,0 +1,3 @@
+# Raw transliteration files are fetched by pipeline/fetch_data.sh and never committed.
+/data/
+node_modules/

@@ -1,0 +1,27 @@
+{
+  "bagofwords.job.json": {
+    "result_hash": "sha256:3f0a1ccf7ed9ec640a9445b96e3873165d621bd68ed788f80283845198cb4699",
+    "best_seed": 10,
+    "best_distance": 18.20480082876618
+  },
+  "charmarkov.job.json": {
+    "result_hash": "sha256:7fec132bd56a6ddc0b6cab89818250bf3a55553262b328ac4e2849067bab3809",
+    "best_seed": 2,
+    "best_distance": 19.194826501363433
+  },
+  "gibberish.job.json": {
+    "result_hash": "sha256:fefeb69f667258b8511771ab2421946cd69eaf260482763ccfbc360b8b4d4880",
+    "best_seed": 3,
+    "best_distance": 52.67363870907216
+  },
+  "selfcite-full-layout.job.json": {
+    "result_hash": "sha256:a9fdbcfd2876fabee03737680883e907dbfbcc7b7c7983d7603b70fef38b4af2",
+    "best_seed": 8,
+    "best_distance": 63.314934156981494
+  },
+  "selfcite.job.json": {
+    "result_hash": "sha256:75be9671a8dad1cf68e1aafbb45eb2ee8229f92ed8d2ffbeb83798d8beb18f06",
+    "best_seed": 0,
+    "best_distance": 63.33314038618743
+  }
+}

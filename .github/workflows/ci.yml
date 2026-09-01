@@ -1,0 +1,45 @@
+name: kernel
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  native:
+    name: native tests, lints, goldens
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: kernel
+    steps:
+      - uses: actions/checkout@v4
+      - name: Toolchain (pinned by rust-toolchain.toml)
+        run: rustup show
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Clippy (determinism guard rails)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Tests (unit, contracts, goldens)
+        run: cargo test --workspace
+      - name: Build native CLI
+        run: cargo build --release -p vah-cli
+
+  wasm-parity:
+    name: wasm32 build and native/wasm parity
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: kernel
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build wasm module
+        run: cargo build --release --target wasm32-unknown-unknown -p vah-wasm
+      - name: Report module size
+        run: ls -la target/wasm32-unknown-unknown/release/vah_wasm.wasm
+      - name: Golden jobs must hash identically in wasm
+        run: node scripts/wasm-parity.mjs golden

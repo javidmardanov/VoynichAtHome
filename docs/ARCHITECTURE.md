@@ -1,6 +1,6 @@
 # Voynich@Home — System Architecture
 
-*Detailed design for milestone 1 (full public platform). Companion to [PLAN.md](PLAN.md); the research grounding is in [docs/research/](research/).*
+*Detailed design for milestone 1 (full public platform). Companion to [PLAN.md](PLAN.md); the research grounding is in [docs/research/](research/). The merged design in [SYNTHESIS.md](SYNTHESIS.md) supersedes this document where they differ; the kernel section below is implemented in `kernel/` (see `kernel/README.md` for what was built and where it deviates).*
 
 ## 1. Monorepo layout, tooling, framework
 
@@ -11,7 +11,7 @@
 │   ├── crates/stats/                # fingerprint statistics vector + distance metric (~20 stats)
 │   ├── crates/generators/           # TextGenerator trait + all generator families
 │   ├── crates/core/                 # WU executor: WorkUnit JSON → run → Result JSON; canonical hashing
-│   ├── crates/wasm/                 # wasm-bindgen cdylib wrapper over core (browser + Node runner)
+│   ├── crates/wasm/                 # C-ABI cdylib over core (browser + Node runner); crates are named vah-* in the implementation
 │   ├── crates/cli/                  # native binary `voynich`: fingerprint | run-wu | canary | golden | abc
 │   └── golden/                      # committed known-answer files (JSON): (family,θ,seed)→hash+stats bits
 ├── pipeline/                        # offline, dev/CI-time only (invokes kernel/crates/cli natively)
@@ -42,7 +42,7 @@
 
 | Concern | Choice | Why |
 |---|---|---|
-| Rust→WASM | `wasm-pack` (`--target web` for browser, `--target nodejs` artifact for tests/runner) | One command, generates JS glue + .d.ts |
+| Rust→WASM | **Plain C ABI, no glue generator** (implemented in `kernel/crates/vah-wasm`): `cargo build --target wasm32-unknown-unknown`; the worker uses the raw `WebAssembly` API with six exported functions | Smaller module, no wasm-bindgen/wasm-pack toolchain, and the same `.wasm` runs in Node for parity tests (earlier draft said wasm-pack) |
 | WASM threads | **None inside WASM.** Parallelism = pool of independent single-threaded WASM instances (one per Web Worker) — WUs are embarrassingly parallel, so this avoids nightly Rust, atomics builds, and wasm-bindgen-rayon entirely. COOP/COEP still shipped (enables cross-origin isolation, SharedArrayBuffer progress counters, precise timing) | Simplest thing that saturates all cores |
 | Web build | Vite, MPA mode (one HTML entry per page) | Each page stays tiny; no SSR machinery for a static Pages site |
 | JS framework | **Svelte 5** | For a page whose pitch is "donate your CPU," framework overhead is part of the product: Svelte compiles away (~few KB vs React ~45KB+), runes/stores map 1:1 onto progress-event-driven UI, and a solo dev doesn't need React's ecosystem benefits. Vanilla+lit was the runner-up but dashboards + shared reactive state get verbose without a store model |

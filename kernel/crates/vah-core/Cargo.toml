@@ -1,0 +1,19 @@
+[package]
+name = "vah-core"
+description = "Work-unit executor: content-addressed work units, deterministic execution, canonical result hashing"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+vah-corpus = { path = "../vah-corpus" }
+vah-stats = { path = "../vah-stats" }
+vah-generators = { path = "../vah-generators" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+libm = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
