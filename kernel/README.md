@@ -51,7 +51,7 @@ The transport-level envelope (attempt, host profile including the runner adapter
 
 ## Gate 2 tooling
 
-`voynich sweep` runs a registered parameter grid on all cores and writes a ledger of every point (distances and fingerprints of every replicate). `voynich plant` makes a pseudo-manuscript from hidden parameters with its own target. `voynich calibrate` measures the true generator's spread, applies the candidate acceptance rules to a sweep, checks recovery and specificity, and scores the controls. `voynich self-distance` gives the bootstrap spread of the manuscript against its target. See `../docs/CALIBRATION.md`.
+`voynich sweep` runs a registered parameter grid on all cores and writes a ledger of every point (distances and fingerprints of every replicate). `voynich plant` makes a pseudo-manuscript from hidden parameters with its own target. `voynich calibrate` measures the true generator's spread, applies the candidate acceptance rules to a sweep, checks recovery and specificity, and scores the controls. `voynich refine` runs coarse-to-fine levels around the best point (registered domain, declared integer axes, a ledger per level, one random stream per parameter point across levels). `voynich self-distance` gives the bootstrap spread of the manuscript against its target. See `../docs/CALIBRATION.md`.
 
 ## Commands
 

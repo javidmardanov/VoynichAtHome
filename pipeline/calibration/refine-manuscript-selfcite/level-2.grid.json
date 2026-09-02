@@ -1,27 +1,27 @@
 {
-  "experiment_id": "calibration-selfcite-v1-refined",
+  "experiment_id": "calibration-selfcite-v1",
   "family": "selfcite",
   "fixed": {},
   "axes": {
-    "p_modify": [
-      0.7,
-      0.75,
-      0.8
+    "max_len": [
+      6,
+      7,
+      8
     ],
-    "window_lines": [
-      2,
-      3,
-      4
+    "p_modify": [
+      0.925,
+      0.95,
+      0.975
     ],
     "w_delete": [
-      2,
+      2.25,
       2.5,
-      3
+      2.75
     ],
-    "max_len": [
-      8,
-      9,
-      10
+    "window_lines": [
+      6,
+      7,
+      8
     ]
   },
   "replicates": 8,

@@ -63,6 +63,10 @@ Two readings. The fingerprint separates order-preserving structure from order-de
 
 Yes, in the first calibration. A pseudo-manuscript generated from hidden self-citation parameters was recovered as the unique compatible point of an 81-point grid, every control was rejected, and a grid that did not contain the hidden point correctly yielded no compatible point. The rule that achieved this is a tail-robust median rule; the naive acceptance-probability rule broke on a parameter region where the generator collapses into repeated words. Method, numbers and the recommendation to the statistician are in [`docs/CALIBRATION.md`](docs/CALIBRATION.md).
 
+## What the search does when the answer is between grid points
+
+`voynich refine` runs coarse-to-fine levels around the best point of each level, with declared integer axes, a complete ledger per level and one random stream per parameter point. Started from the same 216-point coarse grid that could not contain a planted off-grid point, it recovers that point exactly at the first refinement level, as the unique compatible point, in about five minutes of one core. On the real target the current self-citation implementation bottoms out near a median distance of 48, far from compatibility; that is a development result on unregistered weights, and a question for the domain advisor about fidelity to the published model. Details in [`docs/CALIBRATION.md`](docs/CALIBRATION.md).
+
 ## Verify a unit in your browser
 
 `web/verify` is a static page: it loads the kernel as WebAssembly, checks the module digest against a release manifest, runs one golden work unit in a Web Worker, and compares the result hash with the published one. It needs no server, no account and sends nothing. A Playwright check runs it headlessly in CI. The owner can publish it with GitHub Pages (Settings → Pages → Source: GitHub Actions; the `verification page` workflow then deploys it). Local run:

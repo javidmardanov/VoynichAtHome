@@ -13,6 +13,7 @@
 //!   voynich golden --dir D [--update]        known-answer checks
 #![forbid(unsafe_code)]
 
+mod refine;
 mod sweep;
 
 use std::collections::BTreeMap;
@@ -278,6 +279,32 @@ enum Cmd {
         resamples: u32,
         #[arg(long, default_value_t = 2)]
         seed: u64,
+    },
+    /// Coarse-to-fine refinement: registered grid levels around the best point.
+    Refine {
+        #[arg(long)]
+        grid: PathBuf,
+        #[arg(long)]
+        target: PathBuf,
+        #[arg(long)]
+        layout: PathBuf,
+        #[arg(long)]
+        resources: Option<PathBuf>,
+        #[arg(long, default_value_t = 3)]
+        levels: usize,
+        /// Step multiplier per level.
+        #[arg(long, default_value_t = 0.5)]
+        shrink: f64,
+        /// Replicates at the final level (default: the grid's replicates).
+        #[arg(long)]
+        final_replicates: Option<u32>,
+        /// Rule C threshold: list points whose median is at or below it.
+        #[arg(long)]
+        epsilon_median: Option<f64>,
+        #[arg(long)]
+        threads: Option<usize>,
+        #[arg(long)]
+        out: PathBuf,
     },
     /// Run every job in a golden directory and compare with expected.json.
     Golden {
@@ -1052,6 +1079,46 @@ fn run(cli: Cli) -> Res<()> {
                 "q99": calib::quantile(&d, 0.99), "max": d.last(), "min": d.first(),
             });
             println!("{}", serde_json::to_string_pretty(&out)?);
+        }
+        Cmd::Refine {
+            grid,
+            target,
+            layout,
+            resources,
+            levels,
+            shrink,
+            final_replicates,
+            epsilon_median,
+            threads,
+            out,
+        } => {
+            let grid: Grid = read_json(&grid)?;
+            let target = read_target(&target)?;
+            let layout: Layout = read_json(&layout)?;
+            let resources: Option<Resources> = match resources {
+                Some(p) => Some(read_json(&p)?),
+                None => None,
+            };
+            let threads = threads.unwrap_or_else(default_threads);
+            let report = refine::refine(
+                &grid,
+                &target,
+                &layout,
+                resources.as_ref(),
+                levels,
+                shrink,
+                final_replicates,
+                epsilon_median,
+                threads,
+                &out,
+            )?;
+            println!(
+                "refined {} levels, {} simulations; best median {:.3} at {}",
+                report.levels.len(),
+                report.simulations,
+                report.final_best_median,
+                serde_json::to_string(&report.final_best_params)?
+            );
         }
         Cmd::Golden { dir, update } => {
             let (results, expected) = run_golden_dir(&dir)?;

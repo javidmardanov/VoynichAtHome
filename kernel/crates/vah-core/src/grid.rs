@@ -26,6 +26,13 @@ pub struct Grid {
     /// Truncate the layout to this many words (0 = full layout).
     #[serde(default)]
     pub layout_tokens: usize,
+    /// Axes whose parameter is an integer (refinement keeps them integral).
+    /// Absent from the canonical JSON when empty, so existing grids keep
+    /// their digests. When empty, refinement infers integrality from the
+    /// level-0 values, which is wrong for a real-valued parameter whose
+    /// coarse values happen to be whole numbers; declare the axes.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub integer_axes: Vec<String>,
 }
 
 impl Grid {
@@ -57,6 +64,13 @@ impl Grid {
             if self.fixed.contains_key(name) {
                 return Err(CoreError::Invalid(format!(
                     "{name} is both fixed and an axis"
+                )));
+            }
+        }
+        for a in &self.integer_axes {
+            if !self.axes.contains_key(a) {
+                return Err(CoreError::Invalid(format!(
+                    "integer axis {a} is not an axis"
                 )));
             }
         }
@@ -168,6 +182,12 @@ mod tests {
         let mut g = grid();
         g.replicates = 0;
         assert!(g.validate().is_err());
+        let mut g = grid();
+        g.integer_axes = vec!["nope".into()];
+        assert!(g.validate().is_err());
+        assert!(!crate::canonical_json(&grid())
+            .unwrap()
+            .contains("integer_axes"));
         let mut g = grid();
         g.fixed.insert("p_modify".into(), serde_json::json!(0.1));
         assert!(g.validate().is_err());

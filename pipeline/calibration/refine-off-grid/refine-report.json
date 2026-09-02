@@ -1,0 +1,259 @@
+{
+  "schema_version": "vah-refine-0.1",
+  "experiment_id": "calibration-selfcite-v1",
+  "family": "selfcite",
+  "target_digest": "sha256:35115c95cc895b77c592ce7efeeb3fbad42549e7690983352a4c127a20b1c6b2",
+  "shrink": 0.5,
+  "epsilon_median": 2.314,
+  "levels": [
+    {
+      "level": 0,
+      "grid_digest": "sha256:11497530df8da39ac7ec28277ccfc7206ac2635d989353b36951ef16bd164e2d",
+      "points": 216,
+      "replicates": 8,
+      "best_index": 102,
+      "best_params": {
+        "max_len": 8,
+        "p_modify": 0.7,
+        "w_delete": 2,
+        "window_lines": 4
+      },
+      "best_median": 7.572928104849906,
+      "best_distances": [
+        8.617706622695325,
+        7.743901874818021,
+        7.279792063918768,
+        7.515978783474796,
+        8.112959280363974,
+        7.629877426225017,
+        7.1486899452203465,
+        7.4428847251312185
+      ],
+      "compatible": [],
+      "steps": [
+        [
+          "max_len",
+          2.0
+        ],
+        [
+          "p_modify",
+          0.1
+        ],
+        [
+          "w_delete",
+          1.0
+        ],
+        [
+          "window_lines",
+          2.3333333333333335
+        ]
+      ]
+    },
+    {
+      "level": 1,
+      "grid_digest": "sha256:e08b846e6c4c7582686c826fb295498a7ceabf83f4148f01e57c75f92377a139",
+      "points": 81,
+      "replicates": 8,
+      "best_index": 78,
+      "best_params": {
+        "max_len": 9,
+        "p_modify": 0.75,
+        "w_delete": 2.5,
+        "window_lines": 3
+      },
+      "best_median": 1.5719485894234384,
+      "best_distances": [
+        1.167978661261731,
+        1.47537173254521,
+        1.604034777989023,
+        1.5398624008578536,
+        2.0018319843208414,
+        1.6264459960198523,
+        1.3613246343627752,
+        1.695397224826986
+      ],
+      "compatible": [
+        {
+          "max_len": 9,
+          "p_modify": 0.75,
+          "w_delete": 2.5,
+          "window_lines": 3
+        }
+      ],
+      "steps": [
+        [
+          "max_len",
+          1.0
+        ],
+        [
+          "p_modify",
+          0.05
+        ],
+        [
+          "w_delete",
+          0.5
+        ],
+        [
+          "window_lines",
+          1.0
+        ]
+      ]
+    },
+    {
+      "level": 2,
+      "grid_digest": "sha256:1fe8c3cc1c9b5c91e17559c96dda66127de92b2730d9ff54a3fa73e3c31ff509",
+      "points": 81,
+      "replicates": 8,
+      "best_index": 40,
+      "best_params": {
+        "max_len": 9,
+        "p_modify": 0.75,
+        "w_delete": 2.5,
+        "window_lines": 3
+      },
+      "best_median": 1.5719485894234384,
+      "best_distances": [
+        1.167978661261731,
+        1.47537173254521,
+        1.604034777989023,
+        1.5398624008578536,
+        2.0018319843208414,
+        1.6264459960198523,
+        1.3613246343627752,
+        1.695397224826986
+      ],
+      "compatible": [
+        {
+          "max_len": 9,
+          "p_modify": 0.725,
+          "w_delete": 2.5,
+          "window_lines": 3
+        },
+        {
+          "max_len": 9,
+          "p_modify": 0.75,
+          "w_delete": 2.5,
+          "window_lines": 3
+        },
+        {
+          "max_len": 9,
+          "p_modify": 0.775,
+          "w_delete": 2.5,
+          "window_lines": 2
+        }
+      ],
+      "steps": [
+        [
+          "max_len",
+          1.0
+        ],
+        [
+          "p_modify",
+          0.025
+        ],
+        [
+          "w_delete",
+          0.25
+        ],
+        [
+          "window_lines",
+          1.0
+        ]
+      ]
+    },
+    {
+      "level": 3,
+      "grid_digest": "sha256:a96d62bf32297f5331b6ad05596f3559608da80fac862bf4104dd0385ff7e124",
+      "points": 81,
+      "replicates": 8,
+      "best_index": 40,
+      "best_params": {
+        "max_len": 9,
+        "p_modify": 0.75,
+        "w_delete": 2.5,
+        "window_lines": 3
+      },
+      "best_median": 1.5719485894234384,
+      "best_distances": [
+        1.167978661261731,
+        1.47537173254521,
+        1.604034777989023,
+        1.5398624008578536,
+        2.0018319843208414,
+        1.6264459960198523,
+        1.3613246343627752,
+        1.695397224826986
+      ],
+      "compatible": [
+        {
+          "max_len": 9,
+          "p_modify": 0.7375,
+          "w_delete": 2.5,
+          "window_lines": 3
+        },
+        {
+          "max_len": 9,
+          "p_modify": 0.7375,
+          "w_delete": 2.625,
+          "window_lines": 3
+        },
+        {
+          "max_len": 9,
+          "p_modify": 0.75,
+          "w_delete": 2.375,
+          "window_lines": 3
+        },
+        {
+          "max_len": 9,
+          "p_modify": 0.75,
+          "w_delete": 2.5,
+          "window_lines": 3
+        },
+        {
+          "max_len": 9,
+          "p_modify": 0.75,
+          "w_delete": 2.625,
+          "window_lines": 3
+        },
+        {
+          "max_len": 9,
+          "p_modify": 0.7625,
+          "w_delete": 2.5,
+          "window_lines": 3
+        },
+        {
+          "max_len": 9,
+          "p_modify": 0.7625,
+          "w_delete": 2.625,
+          "window_lines": 3
+        }
+      ],
+      "steps": [
+        [
+          "max_len",
+          1.0
+        ],
+        [
+          "p_modify",
+          0.0125
+        ],
+        [
+          "w_delete",
+          0.125
+        ],
+        [
+          "window_lines",
+          1.0
+        ]
+      ]
+    }
+  ],
+  "final_best_params": {
+    "max_len": 9,
+    "p_modify": 0.75,
+    "w_delete": 2.5,
+    "window_lines": 3
+  },
+  "final_best_median": 1.5719485894234384,
+  "simulations": 3672
+}

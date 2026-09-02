@@ -77,11 +77,37 @@ Readings:
 
 The metric is a per-unit field (`metric`, default `z`, absent from the identity of existing units), so a registered experiment chooses once and every work unit carries the choice.
 
+## Addendum: coarse-to-fine refinement (overnight batch, part 4)
+
+`voynich refine` implements the search procedure that point 3 above calls for: registered grid levels, each the neighbourhood `{best − step, best, best + step}` per axis of the previous level's best point (by median), with `step` halved per level, values clamped to the level-0 domain, integer axes declared in the grid and kept integral, a ledger per level, and one random stream per parameter point across levels (a point evaluated twice gets the same replicates).
+
+**Recovery of the off-grid planted point from the coarse grid** (hidden: `p_modify` 0.75, `window_lines` 3, `w_delete` 2.5, `max_len` 9; ε_med = 2.31 from the calibration above):
+
+| Level | Points | Best point (median) | Compatible points | Steps (`p_modify`, `w_delete`, `window_lines`, `max_len`) |
+|---|---|---|---|---|
+| 0 | 216 | (0.7, 4, 2, 8): 7.57 | 0 | 0.1, 1, 2.3, 2 |
+| 1 | 81 | **(0.75, 3, 2.5, 9): 1.57** | 1 | 0.05, 0.5, 1, 1 |
+| 2 | 81 | same: 1.57 | 3 | 0.025, 0.25, 1, 1 |
+| 3 | 81 | same: 1.57 | 7 | 0.0125, 0.125, 1, 1 |
+
+The exact hidden point is found at level 1 and is the only compatible point there. From level 2 on, neighbours within the shrinking step become compatible too: the grid has reached the resolution at which the fingerprint no longer distinguishes points. That is a natural stopping rule for registration ("stop when the compatible set stops shrinking"). Cost: 3,672 simulations, about five minutes of one core.
+
+One rule mattered: `w_delete` is a real-valued parameter whose coarse values (1, 2, 3) are whole numbers. With integrality inferred from the values, the refinement could never reach 2.5 and stalled at median 3.95. Grids therefore declare their integer axes explicitly (`integer_axes`), and inference is only a fallback.
+
+**The same procedure on the real manuscript target, self-citation family** (development result on unregistered weights; not a finding):
+
+| Level | Points | Best point (median) |
+|---|---|---|
+| 0 | 216 | (`p_modify` 1.0, `window_lines` 8, `w_delete` 2, `max_len` 6): 49.5 |
+| 1–3 | 24, 81, 81 | (0.925, 6, 2.25, 7): 48.1 |
+
+The self-citation family as implemented here bottoms out near 48, an order of magnitude above the compatibility thresholds seen in calibration (2–5) and four times worse than the order-3 glyph Markov control (9.9). The bounded reading: *this implementation, within this parameter domain and this budget, is not compatible with the registered summaries.* Whether a faithful implementation of the published model behaves differently is the domain advisor's question; the tooling is ready for it.
+
 ## Recommendation to the statistical-methods lead
 
 - Primary rule: rule C, with ε_med calibrated per family from at least five planted points spread over the parameter space, and N fixed at 16 or more for the confirmation level (N = 8 is enough for coarse levels).
 - Report per point: median, acceptance probability with its Wilson interval (rule A's quantities, informative even when not decisive), and the replicate cloud statistics (rule B's quantities). Acceptance by rule C only.
-- Search: coarse-to-fine with registered levels; the refinement stopping rule is part of the registration.
+- Search: coarse-to-fine with registered levels (`voynich refine`); proposed stopping rule: stop when the compatible set stops shrinking between levels. Declare integer axes in every grid.
 - Before ε is frozen: choose the scale estimator (block bootstrap or subsample; the addendum shows they agree) and decide between the z-distance and the regularised Mahalanobis distance (the addendum shows a modest gain at λ = 0.5).
 
 ## Reproduce
