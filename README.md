@@ -75,6 +75,12 @@ cargo build --release --target wasm32-unknown-unknown -p vah-wasm && node script
 
 The merged design adds, from the other proposal, the registration lifecycle, one authoritative schema suite with RFC 8785 identities, the multi-transcription corpus model, whole-quire confirmation partitions, the claim ladder, the gates before public launch, and named human roles. See `docs/SYNTHESIS.md`.
 
+## Does this need volunteers' computers?
+
+Not for the first experiment. Measured on the draft 2 kernel, one simulation (generate a 28,000-word corpus, compute 30 statistics, score it) takes 0.04–0.08 s natively and 0.06–0.08 s in WebAssembly. The screening experiment as outlined is an overnight job on a laptop; a wide version is a day on one rented 32-core server. Volunteer scale becomes a computational necessity only for billion-simulation adaptive sweeps with a heavier fingerprint, for the verbose-cipher search (workload 2), or for language-model-based grids (workload 3). See [`docs/BENCHMARK.md`](docs/BENCHMARK.md).
+
+So the plan is: run experiment 1 on one machine with the same kernel and contracts; offer a browser **verification page** (run one registered unit, check that the hash matches); and build the public coordinator only if a registered workload needs it and only after three go/no-go tests pass: a statistician and a domain advisor on board, the registered workload benchmarked, and twenty explicit pilot commitments (`docs/SYNTHESIS.md`, section 13).
+
 ## Roadmap
 
 | Gate | Content | State |
@@ -82,7 +88,7 @@ The merged design adds, from the other proposal, the registration lifecycle, one
 | Merge | Draft 2 reviewed; owner decides open points and names roles | draft 2 under review |
 | 1 — local engine | parser, fingerprint, generators, executor, CLI, wasm parity, JCS identities, partitions | **done for ZL3b**; GC2a/IT2a views and the full schema migration pending |
 | 2 — calibration | planted-parameter recovery, specificity, false-alarm rate, frozen metric/weights/ε/N, registered experiment, cross-engine parity | next |
-| 3 — invitation pilot | coordinator, contribute page, signed release chain, tens of invited browsers on synthetic work | after Gate 2 |
+| 3 — invitation pilot | coordinator, contribute page, signed release chain, tens of invited browsers on synthetic work | conditional on the three go/no-go tests and on a workload that needs volunteers |
 | 4 — public | external written go-ahead, registered plan published first | after Gate 3 |
 
 ## Acknowledgements owed
