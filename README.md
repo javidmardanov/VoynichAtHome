@@ -56,6 +56,10 @@ Development sanity checks against that target (weighted z-distance; the manuscri
 
 Two readings. The fingerprint separates order-preserving structure from order-destroying controls: the bag-of-words and the Markov chain keep the short-range statistics but miss the repetition, line and paragraph effects by 10–20 scales each. And the default self-citation variant is far off, mostly on conditional entropy (about 3.8 bits versus 2.1): copying and editing words from a random seed vocabulary does not create the manuscript's rigid word structure by itself. Which parameter region, if any, is compatible is what the registered screening experiment will test, with a fixed number of replicates per parameter point and a registered acceptance measure, never a best seed.
 
+## Can the screen find a planted answer?
+
+Yes, in the first calibration. A pseudo-manuscript generated from hidden self-citation parameters was recovered as the unique compatible point of an 81-point grid, every control was rejected, and a grid that did not contain the hidden point correctly yielded no compatible point. The rule that achieved this is a tail-robust median rule; the naive acceptance-probability rule broke on a parameter region where the generator collapses into repeated words. Method, numbers and the recommendation to the statistician are in [`docs/CALIBRATION.md`](docs/CALIBRATION.md).
+
 ## Run it
 
 ```sh
@@ -87,7 +91,7 @@ So the plan is: run experiment 1 on one machine with the same kernel and contrac
 |---|---|---|
 | Merge | Draft 2 reviewed; owner decides open points and names roles | draft 2 under review |
 | 1 — local engine | parser, fingerprint, generators, executor, CLI, wasm parity, JCS identities, partitions | **done for ZL3b**; GC2a/IT2a views and the full schema migration pending |
-| 2 — calibration | planted-parameter recovery, specificity, false-alarm rate, frozen metric/weights/ε/N, registered experiment, cross-engine parity | next |
+| 2 — calibration | planted-parameter recovery, specificity, false-alarm rate, frozen metric/weights/ε/N, registered experiment, cross-engine parity | tooling and first results done; decisions await the statistical lead |
 | 3 — invitation pilot | coordinator, contribute page, signed release chain, tens of invited browsers on synthetic work | conditional on the three go/no-go tests and on a workload that needs volunteers |
 | 4 — public | external written go-ahead, registered plan published first | after Gate 3 |
 

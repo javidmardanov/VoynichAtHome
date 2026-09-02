@@ -13,6 +13,8 @@
 //!   voynich golden --dir D [--update]        known-answer checks
 #![forbid(unsafe_code)]
 
+mod sweep;
+
 use std::collections::BTreeMap;
 use std::fs;
 use std::io::Write;
@@ -20,9 +22,11 @@ use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
+use vah_core::calib::{self, Rule};
+use vah_core::grid::Grid;
 use vah_core::partition::{self, Manifest};
 use vah_core::vah_corpus::Corpus;
-use vah_core::vah_generators::{GlyphModel, Layout, Params, Resources, WordBag};
+use vah_core::vah_generators::{self, GlyphModel, Layout, Params, Resources, Rng, WordBag};
 use vah_core::vah_stats::{self, Target};
 use vah_core::{build_target, Job, TargetFile, TargetProvenance, WorkResult};
 use vah_ivtff::ViewPolicy;
@@ -138,6 +142,88 @@ enum Cmd {
         #[arg(long)]
         seed: u64,
     },
+    /// Run a parameter grid on this machine and write a ledger of every point.
+    Sweep {
+        #[arg(long)]
+        grid: PathBuf,
+        #[arg(long)]
+        target: PathBuf,
+        #[arg(long)]
+        layout: PathBuf,
+        #[arg(long)]
+        resources: Option<PathBuf>,
+        #[arg(long)]
+        out: PathBuf,
+        /// Worker threads (default: all cores).
+        #[arg(long)]
+        threads: Option<usize>,
+    },
+    /// Create a planted pseudo-manuscript: a corpus generated from hidden
+    /// parameters, with its own target, layout, resources and answer file.
+    Plant {
+        #[arg(long)]
+        family: String,
+        #[arg(long, default_value = "{}")]
+        params: String,
+        #[arg(long)]
+        layout: PathBuf,
+        #[arg(long)]
+        resources: Option<PathBuf>,
+        #[arg(long, default_value_t = 1)]
+        seed: u64,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long, default_value_t = 200)]
+        resamples: u32,
+        #[arg(long, default_value_t = 3)]
+        markov_order: usize,
+        /// Truncate the layout to this many words (0 = full).
+        #[arg(long, default_value_t = 0)]
+        max_tokens: usize,
+    },
+    /// Calibrate the acceptance rule on a planted pseudo-manuscript:
+    /// self-distance epsilon, recovery of the hidden point, specificity, controls.
+    Calibrate {
+        /// Directory written by `plant`.
+        #[arg(long)]
+        planted: PathBuf,
+        #[arg(long)]
+        grid: PathBuf,
+        /// Existing ledger for this grid (otherwise the sweep is run).
+        #[arg(long)]
+        ledger: Option<PathBuf>,
+        #[arg(long, default_value_t = 64)]
+        self_replicates: u32,
+        #[arg(long, default_value_t = 16)]
+        control_replicates: u32,
+        /// Epsilon = this quantile of the self-distances.
+        #[arg(long, default_value_t = 0.99)]
+        quantile: f64,
+        /// A point is compatible when the Wilson lower bound of P(d <= epsilon) exceeds this.
+        #[arg(long, default_value_t = 0.5)]
+        level: f64,
+        /// Rule B: a point is compatible when the target's rank p-value inside the
+        /// point's replicate cloud exceeds this.
+        #[arg(long, default_value_t = 0.1)]
+        alpha: f64,
+        #[arg(long)]
+        threads: Option<usize>,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    /// Distances of bootstrap resamples of the manuscript to the target:
+    /// the spread a true generator of the manuscript would show.
+    SelfDistance {
+        file: PathBuf,
+        #[arg(long)]
+        targets: PathBuf,
+        #[command(flatten)]
+        corpus: CorpusOpts,
+        #[arg(long, default_value_t = 200)]
+        resamples: u32,
+        #[arg(long, default_value_t = 2)]
+        seed: u64,
+    },
     /// Run every job in a golden directory and compare with expected.json.
     Golden {
         #[arg(long)]
@@ -156,6 +242,12 @@ fn main() {
 }
 
 type Res<T> = Result<T, Box<dyn std::error::Error>>;
+
+fn default_threads() -> usize {
+    std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1)
+}
 
 fn policy(view: &str) -> Res<ViewPolicy> {
     match view {
@@ -494,6 +586,390 @@ fn run(cli: Cli) -> Res<()> {
             let _ = std::io::stdout()
                 .lock()
                 .write_all(corpus.to_text().as_bytes());
+        }
+        Cmd::Sweep {
+            grid,
+            target,
+            layout,
+            resources,
+            out,
+            threads,
+        } => {
+            let grid: Grid = read_json(&grid)?;
+            let target = read_target(&target)?;
+            let layout: Layout = read_json(&layout)?;
+            let resources: Option<Resources> = match resources {
+                Some(p) => Some(read_json(&p)?),
+                None => None,
+            };
+            let threads = threads.unwrap_or_else(default_threads);
+            let header = sweep::header(&grid, &target, &layout, resources.as_ref())?;
+            eprintln!(
+                "sweep: {} points x {} replicates, {} threads",
+                grid.len(),
+                grid.replicates,
+                threads
+            );
+            let started = std::time::Instant::now();
+            let entries =
+                sweep::run_grid(&grid, &target, &layout, resources.as_ref(), threads, true)?;
+            sweep::write_ledger(&out, &header, &entries)?;
+            let secs = started.elapsed().as_secs_f64();
+            let sims = entries.len() as f64 * grid.replicates as f64;
+            eprintln!(
+                "wrote {} ({} points, {:.0} simulations, {:.1} s, {:.1} ms per simulation per thread)",
+                out.display(),
+                entries.len(),
+                sims,
+                secs,
+                secs * 1000.0 * threads as f64 / sims.max(1.0)
+            );
+        }
+        Cmd::Plant {
+            family,
+            params,
+            layout,
+            resources,
+            seed,
+            out,
+            resamples,
+            markov_order,
+            max_tokens,
+        } => {
+            let params: Params = serde_json::from_str(&params)?;
+            let mut layout: Layout = read_json(&layout)?;
+            if max_tokens > 0 {
+                layout = layout.truncate_tokens(max_tokens);
+            }
+            let gen_resources: Resources = match &resources {
+                Some(p) => read_json(p)?,
+                None => Resources::default(),
+            };
+            let generator = vah_generators::build(&family, &params, &gen_resources)?;
+            let answer = serde_json::json!({
+                "family": family,
+                "params": params,
+                "seed": seed,
+                "layout_digest": vah_core::digest_json(&layout)?,
+                "generator_resources_digest": resources.as_ref().map(|_| vah_core::digest_json(&gen_resources)).transpose()?,
+            });
+            let source_digest = vah_core::digest_json(&answer)?;
+            let mut rng = Rng::new(&format!("planted:{source_digest}"), seed);
+            let corpus = generator.generate(&mut rng, &layout);
+            fs::create_dir_all(&out)?;
+            let target = build_target(&corpus, resamples, 1);
+            let tf = TargetFile {
+                target,
+                provenance: TargetProvenance {
+                    source_digest: source_digest.clone(),
+                    view_id: "planted-v1".to_string(),
+                    partition_digest: None,
+                    roles: Vec::new(),
+                    resamples,
+                    bootstrap_seed: 1,
+                    kernel_version: vah_core::KERNEL_VERSION.to_string(),
+                    words: corpus.word_count(),
+                    lines: corpus.lines.len(),
+                },
+            };
+            write_json(&out.join("fingerprint_v1.json"), &tf)?;
+            write_json(&out.join("layout_v1.json"), &layout)?;
+            let planted_resources = Resources {
+                glyph_model: Some(GlyphModel::train(&corpus, markov_order)),
+                word_bag: Some(WordBag::from_corpus(&corpus)),
+            };
+            write_json(&out.join("resources_v1.json"), &planted_resources)?;
+            write_json(&out.join("answer.json"), &answer)?;
+            fs::write(out.join("planted_text.txt"), corpus.to_text())?;
+            eprintln!(
+                "planted {} words from {} {} (seed {}) into {}; keep answer.json with the custodian",
+                corpus.word_count(),
+                family,
+                serde_json::to_string(&answer["params"])?,
+                seed,
+                out.display()
+            );
+        }
+        Cmd::Calibrate {
+            planted,
+            grid,
+            ledger,
+            self_replicates,
+            control_replicates,
+            quantile,
+            level,
+            alpha,
+            threads,
+            out,
+        } => {
+            let grid: Grid = read_json(&grid)?;
+            grid.validate()?;
+            let target = read_target(&planted.join("fingerprint_v1.json"))?;
+            let layout: Layout = read_json(&planted.join("layout_v1.json"))?;
+            let resources: Resources = read_json(&planted.join("resources_v1.json"))?;
+            let answer: serde_json::Value = read_json(&planted.join("answer.json"))?;
+            let hidden_family = answer["family"]
+                .as_str()
+                .ok_or("answer.json: family")?
+                .to_string();
+            let hidden_params: Params = serde_json::from_value(answer["params"].clone())?;
+            let threads = threads.unwrap_or_else(default_threads);
+            let needs = |family: &str| family == "bagofwords" || family == "charmarkov";
+            let grid_layout = sweep::grid_layout(&grid, &layout);
+
+            // 1. Self-distances of the hidden point: the spread of a true generator.
+            let hidden_res = if needs(&hidden_family) {
+                Some(&resources)
+            } else {
+                None
+            };
+            let wu = vah_core::make_work_unit(
+                "calibration-self",
+                &hidden_family,
+                hidden_params.clone(),
+                &target,
+                &grid_layout,
+                hidden_res,
+                0,
+                self_replicates,
+            )?;
+            let self_run =
+                vah_core::run_work_unit(&wu, &target, &grid_layout, hidden_res, |_, _| {})?;
+            let self_d = calib::sorted(
+                &self_run
+                    .seeds
+                    .iter()
+                    .map(|s| s.distance)
+                    .collect::<Vec<_>>(),
+            );
+            let epsilon = calib::quantile(&self_d, quantile);
+            let rule = Rule::new(epsilon, level);
+            eprintln!(
+                "self-distances (n={}): q50 {:.3}, q90 {:.3}, q99 {:.3}, max {:.3}; epsilon = q{quantile} = {:.3}",
+                self_d.len(),
+                calib::quantile(&self_d, 0.5),
+                calib::quantile(&self_d, 0.9),
+                calib::quantile(&self_d, 0.99),
+                self_d.last().copied().unwrap_or(0.0),
+                epsilon
+            );
+
+            // 2. The sweep (or an existing ledger).
+            let grid_res = if needs(&grid.family) {
+                Some(&resources)
+            } else {
+                None
+            };
+            let header = sweep::header(&grid, &target, &layout, grid_res)?;
+            let entries = match ledger {
+                Some(p) => {
+                    let (h, e) = sweep::read_ledger(&p)?;
+                    if h.grid_digest != header.grid_digest
+                        || h.target_digest != header.target_digest
+                    {
+                        return Err("ledger was made for a different grid or target".into());
+                    }
+                    e
+                }
+                None => {
+                    eprintln!(
+                        "sweep: {} points x {} replicates, {} threads",
+                        grid.len(),
+                        grid.replicates,
+                        threads
+                    );
+                    let e = sweep::run_grid(&grid, &target, &layout, grid_res, threads, true)?;
+                    sweep::write_ledger(&out.with_extension("ledger.jsonl"), &header, &e)?;
+                    e
+                }
+            };
+
+            // 3. Acceptance per point; compatible region; hidden point.
+            let mut accepted: Vec<(usize, calib::Acceptance)> = entries
+                .iter()
+                .map(|e| (e.index, calib::acceptance(&e.distances, &rule)))
+                .collect();
+            let compatible: Vec<usize> = accepted
+                .iter()
+                .filter(|(_, a)| a.compatible)
+                .map(|(i, _)| *i)
+                .collect();
+            accepted.sort_by(|a, b| a.1.median.total_cmp(&b.1.median).then(a.0.cmp(&b.0)));
+            let nearest = if grid.family == hidden_family {
+                grid.nearest(&hidden_params)
+            } else {
+                None
+            };
+            let on_grid = nearest.map(|i| {
+                let p = grid.point(i);
+                hidden_params.iter().all(|(k, v)| {
+                    match (v.as_f64(), p.get(k).and_then(|x| x.as_f64())) {
+                        (Some(a), Some(b)) => a == b,
+                        _ => p.get(k) == Some(v),
+                    }
+                })
+            });
+            let hidden_rank = nearest
+                .and_then(|i| accepted.iter().position(|(j, _)| *j == i))
+                .map(|r| r + 1);
+            let hidden_acceptance = nearest
+                .and_then(|i| entries.iter().find(|e| e.index == i))
+                .map(|e| calib::acceptance(&e.distances, &rule));
+
+            // 3b. Rule B: target inside each point's replicate cloud.
+            let cloud: Vec<(usize, calib::CentroidTest)> = entries
+                .iter()
+                .filter_map(|e| {
+                    calib::centroid_test(&e.fingerprints, &target.mean, &target.scale)
+                        .map(|t| (e.index, t))
+                })
+                .collect();
+            let compatible_b: Vec<usize> = cloud
+                .iter()
+                .filter(|(_, t)| t.p_value > alpha)
+                .map(|(i, _)| *i)
+                .collect();
+            let hidden_cloud = nearest
+                .and_then(|i| cloud.iter().find(|(j, _)| *j == i))
+                .map(|(_, t)| t.clone());
+            let recovered_b = hidden_cloud
+                .as_ref()
+                .map(|t| t.p_value > alpha)
+                .unwrap_or(false);
+            let self_fps: Vec<Vec<f64>> = self_run
+                .seeds
+                .iter()
+                .map(|s| s.fingerprint.clone())
+                .collect();
+            let self_cloud = calib::centroid_test(&self_fps, &target.mean, &target.scale);
+
+            // 3c. Rule C: median rule with a tail-robust threshold.
+            let epsilon_median =
+                calib::subset_median_quantile(&self_d, grid.replicates as usize, quantile, 2000, 1);
+            let compatible_c: Vec<usize> = entries
+                .iter()
+                .filter(|e| e.median <= epsilon_median)
+                .map(|e| e.index)
+                .collect();
+            let hidden_median = nearest
+                .and_then(|i| entries.iter().find(|e| e.index == i))
+                .map(|e| e.median);
+            let recovered_c = hidden_median.map(|m| m <= epsilon_median).unwrap_or(false);
+
+            // 4. Controls against the planted target, under all rules.
+            let mut controls = serde_json::Map::new();
+            for fam in ["gibberish", "bagofwords", "charmarkov"] {
+                let r = if needs(fam) { Some(&resources) } else { None };
+                let wu = vah_core::make_work_unit(
+                    "calibration-control",
+                    fam,
+                    Params::new(),
+                    &target,
+                    &grid_layout,
+                    r,
+                    0,
+                    control_replicates,
+                )?;
+                let run = vah_core::run_work_unit(&wu, &target, &grid_layout, r, |_, _| {})?;
+                let a = calib::acceptance(
+                    &run.seeds.iter().map(|s| s.distance).collect::<Vec<_>>(),
+                    &rule,
+                );
+                let fps: Vec<Vec<f64>> = run.seeds.iter().map(|s| s.fingerprint.clone()).collect();
+                let b = calib::centroid_test(&fps, &target.mean, &target.scale);
+                let c_ok = a.median <= epsilon_median;
+                controls.insert(fam.to_string(), serde_json::json!({"rule_a": a, "rule_b": b, "rule_c": {"median": a.median, "compatible": c_ok}}));
+            }
+
+            let compatible_points: Vec<serde_json::Value> = accepted
+                .iter()
+                .filter(|(_, a)| a.compatible)
+                .map(|(i, a)| serde_json::json!({"index": i, "params": grid.point(*i), "acceptance": a}))
+                .collect();
+            let recovered = hidden_acceptance
+                .as_ref()
+                .map(|a| a.compatible)
+                .unwrap_or(false);
+            let report = serde_json::json!({
+                "schema_version": "vah-calibration-0.1",
+                "planted": answer,
+                "grid": {"digest": header.grid_digest, "family": grid.family, "points": grid.len(), "replicates": grid.replicates},
+                "rule": rule,
+                "epsilon_rule": format!("quantile {quantile} of {} self-distances of the hidden point", self_d.len()),
+                "self_distances": {"n": self_d.len(), "q50": calib::quantile(&self_d, 0.5), "q90": calib::quantile(&self_d, 0.9), "q99": calib::quantile(&self_d, 0.99), "max": self_d.last()},
+                "hidden_point": {"nearest_index": nearest, "on_grid": on_grid, "rank_by_median": hidden_rank, "acceptance": hidden_acceptance},
+                "recovered": recovered,
+                "compatible_fraction": compatible.len() as f64 / entries.len().max(1) as f64,
+                "compatible_points": compatible_points,
+                "rule_c": {
+                    "epsilon_median": epsilon_median,
+                    "epsilon_rule": format!("quantile {quantile} of medians of {}-subsets of the self-distances (2000 draws)", grid.replicates),
+                    "hidden_point_median": hidden_median,
+                    "recovered": recovered_c,
+                    "compatible_fraction": compatible_c.len() as f64 / entries.len().max(1) as f64,
+                    "compatible_points": entries.iter().filter(|e| e.median <= epsilon_median).map(|e| serde_json::json!({"index": e.index, "params": grid.point(e.index), "median": e.median})).collect::<Vec<_>>(),
+                },
+                "self_distances_raw": self_d,
+                "rule_b": {
+                    "alpha": alpha,
+                    "self_point": self_cloud,
+                    "hidden_point": hidden_cloud,
+                    "recovered": recovered_b,
+                    "compatible_fraction": compatible_b.len() as f64 / entries.len().max(1) as f64,
+                    "compatible_points": cloud.iter().filter(|(_, t)| t.p_value > alpha).map(|(i, t)| serde_json::json!({"index": i, "params": grid.point(*i), "test": t})).collect::<Vec<_>>(),
+                },
+                "best_by_median": accepted.iter().take(5).map(|(i, a)| serde_json::json!({"index": i, "params": grid.point(*i), "median": a.median, "k": a.k})).collect::<Vec<_>>(),
+                "controls": controls,
+            });
+            write_json(&out, &report)?;
+            println!(
+                "rule A: epsilon {:.3}; hidden point {} (rank {} of {} by median, {}); compatible {} of {}; controls: {}",
+                epsilon,
+                if recovered { "RECOVERED" } else { "NOT recovered" },
+                hidden_rank.map(|r| r.to_string()).unwrap_or_else(|| "-".into()),
+                entries.len(),
+                match on_grid { Some(true) => "on grid", Some(false) => "off grid", None => "other family" },
+                compatible.len(),
+                entries.len(),
+                report["controls"].as_object().map(|m| m.iter().map(|(k, v)| format!("{k} k={}/{}", v["rule_a"]["k"], v["rule_a"]["n"])).collect::<Vec<_>>().join(", ")).unwrap_or_default()
+            );
+            println!(
+                "rule C: epsilon_median {:.3}; hidden point {} (median {}); compatible {} of {}; controls: {}",
+                epsilon_median,
+                if recovered_c { "RECOVERED" } else { "NOT recovered" },
+                hidden_median.map(|m| format!("{m:.3}")).unwrap_or_else(|| "-".into()),
+                compatible_c.len(),
+                entries.len(),
+                report["controls"].as_object().map(|m| m.iter().map(|(k, v)| format!("{k} median={:.2}", v["rule_c"]["median"].as_f64().unwrap_or(f64::NAN))).collect::<Vec<_>>().join(", ")).unwrap_or_default()
+            );
+            println!(
+                "rule B: alpha {alpha}; hidden point {} (p = {}); compatible {} of {}; controls: {}",
+                if recovered_b { "RECOVERED" } else { "NOT recovered" },
+                hidden_cloud.as_ref().map(|t| format!("{:.3}", t.p_value)).unwrap_or_else(|| "-".into()),
+                compatible_b.len(),
+                entries.len(),
+                report["controls"].as_object().map(|m| m.iter().map(|(k, v)| format!("{k} p={}", v["rule_b"]["p_value"])).collect::<Vec<_>>().join(", ")).unwrap_or_default()
+            );
+            eprintln!("wrote {}", out.display());
+        }
+        Cmd::SelfDistance {
+            file,
+            targets,
+            corpus: opts,
+            resamples,
+            seed,
+        } => {
+            let l = load(&file, &opts)?;
+            let target = read_target(&targets.join("fingerprint_v1.json"))?;
+            let d = calib::sorted(&vah_core::bootstrap_distances(
+                &l.corpus, &target, resamples, seed,
+            )?);
+            let out = serde_json::json!({
+                "source_digest": l.source_digest, "roles": l.roles, "resamples": resamples, "seed": seed,
+                "q50": calib::quantile(&d, 0.5), "q90": calib::quantile(&d, 0.9), "q95": calib::quantile(&d, 0.95),
+                "q99": calib::quantile(&d, 0.99), "max": d.last(), "min": d.first(),
+            });
+            println!("{}", serde_json::to_string_pretty(&out)?);
         }
         Cmd::Golden { dir, update } => {
             let (results, expected) = run_golden_dir(&dir)?;

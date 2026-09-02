@@ -17,6 +17,8 @@
 //! one seed for visualisation and must never decide acceptance.
 #![forbid(unsafe_code)]
 
+pub mod calib;
+pub mod grid;
 mod jcs;
 pub mod partition;
 
@@ -265,7 +267,21 @@ fn valid_param_key(k: &str) -> bool {
 
 /// Check a job's internal consistency without running it.
 pub fn validate_job(job: &Job) -> Result<(), CoreError> {
-    let wu = &job.work_unit;
+    validate_work_unit(
+        &job.work_unit,
+        &job.target,
+        &job.layout,
+        job.resources.as_ref(),
+    )
+}
+
+/// Check a work unit against its artifacts without running it.
+pub fn validate_work_unit(
+    wu: &WorkUnit,
+    target: &Target,
+    layout: &Layout,
+    resources: Option<&Resources>,
+) -> Result<(), CoreError> {
     if wu.schema_version != WORK_UNIT_SCHEMA {
         return Err(CoreError::Schema(format!(
             "unsupported work unit schema {}",
@@ -313,24 +329,24 @@ pub fn validate_job(job: &Job) -> Result<(), CoreError> {
     {
         return Err(CoreError::Invalid("seed range overflows u64".into()));
     }
-    if job.layout.lines.is_empty() {
+    if layout.lines.is_empty() {
         return Err(CoreError::Invalid("layout has no lines".into()));
     }
-    if job.layout.lines.len() > MAX_LAYOUT_LINES {
+    if layout.lines.len() > MAX_LAYOUT_LINES {
         return Err(CoreError::Invalid(format!(
             "layout has more than {MAX_LAYOUT_LINES} lines"
         )));
     }
-    if job.layout.lines.iter().any(|l| l.words == 0) {
+    if layout.lines.iter().any(|l| l.words == 0) {
         return Err(CoreError::Invalid("layout line with zero words".into()));
     }
-    if job.layout.tokens() > MAX_LAYOUT_TOKENS {
+    if layout.tokens() > MAX_LAYOUT_TOKENS {
         return Err(CoreError::Invalid(format!(
             "layout has more than {MAX_LAYOUT_TOKENS} words"
         )));
     }
-    job.target.validate()?;
-    if job.target.version != wu.fingerprint_version {
+    target.validate()?;
+    if target.version != wu.fingerprint_version {
         return Err(CoreError::Schema(
             "target version differs from the work unit's fingerprint version".into(),
         ));
@@ -346,9 +362,9 @@ pub fn validate_job(job: &Job) -> Result<(), CoreError> {
             Ok(())
         }
     };
-    check("target", &wu.target_digest, digest_json(&job.target)?)?;
-    check("layout", &wu.layout_digest, digest_json(&job.layout)?)?;
-    match (&wu.resources_digest, &job.resources) {
+    check("target", &wu.target_digest, digest_json(&target)?)?;
+    check("layout", &wu.layout_digest, digest_json(&layout)?)?;
+    match (&wu.resources_digest, resources) {
         (Some(d), Some(r)) => check("resources", d, digest_json(r)?)?,
         (Some(_), None) => {
             return Err(CoreError::Schema(
@@ -376,11 +392,30 @@ pub fn generate_seed(job: &Job, seed: u64) -> Result<Corpus, CoreError> {
 }
 
 /// Run a job. `progress(done, total)` is called after every seed.
-pub fn run_job<F: FnMut(u32, u32)>(job: &Job, mut progress: F) -> Result<WorkResult, CoreError> {
-    validate_job(job)?;
-    let wu = &job.work_unit;
-    let res = job.resources.clone().unwrap_or_default();
-    let gen = vah_generators::build(&wu.family, &wu.params, &res)?;
+pub fn run_job<F: FnMut(u32, u32)>(job: &Job, progress: F) -> Result<WorkResult, CoreError> {
+    run_work_unit(
+        &job.work_unit,
+        &job.target,
+        &job.layout,
+        job.resources.as_ref(),
+        progress,
+    )
+}
+
+/// Run a work unit against its artifacts (the same as [`run_job`] without
+/// building a `Job`; sweeps use this to share one target, layout and
+/// resource set across many units).
+pub fn run_work_unit<F: FnMut(u32, u32)>(
+    wu: &WorkUnit,
+    target: &Target,
+    layout: &Layout,
+    resources: Option<&Resources>,
+    mut progress: F,
+) -> Result<WorkResult, CoreError> {
+    validate_work_unit(wu, target, layout, resources)?;
+    let empty = Resources::default();
+    let res = resources.unwrap_or(&empty);
+    let gen = vah_generators::build(&wu.family, &wu.params, res)?;
     let stream_id = wu.stream_id()?;
     let mut seeds = Vec::with_capacity(wu.seed_count as usize);
     let mut specimen_seed = wu.seed_start;
@@ -389,7 +424,7 @@ pub fn run_job<F: FnMut(u32, u32)>(job: &Job, mut progress: F) -> Result<WorkRes
     for i in 0..wu.seed_count {
         let seed = wu.seed_start + u64::from(i);
         let mut rng = Rng::new(&stream_id, seed);
-        let corpus = gen.generate(&mut rng, &job.layout);
+        let corpus = gen.generate(&mut rng, layout);
         let fp: Fingerprint = vah_stats::fingerprint(&corpus);
         if let Some(i) = fp.values.iter().position(|v| !v.is_finite()) {
             return Err(CoreError::NonFinite {
@@ -397,7 +432,7 @@ pub fn run_job<F: FnMut(u32, u32)>(job: &Job, mut progress: F) -> Result<WorkRes
                 what: vah_stats::STAT_NAMES[i].to_string(),
             });
         }
-        let d = vah_stats::distance(&fp, &job.target)?;
+        let d = vah_stats::distance(&fp, target)?;
         if d < specimen_distance {
             specimen_distance = d;
             specimen_seed = seed;
@@ -508,20 +543,9 @@ pub struct TargetFile {
     pub provenance: TargetProvenance,
 }
 
-/// Build a target from a reference corpus. `mean` is the corpus fingerprint;
-/// `scale` is the standard deviation of the fingerprint over `resamples`
-/// paragraph-block bootstrap resamples (the corpus's own variability), with
-/// a floor of 1e-6 so that a constant statistic still has a usable scale.
-pub fn build_target(corpus: &Corpus, resamples: u32, bootstrap_seed: u64) -> Target {
-    let base = vah_stats::fingerprint(corpus);
-    let n = base.values.len();
-    let mut names: Vec<String> = vah_stats::STAT_NAMES
-        .iter()
-        .map(|s| s.to_string())
-        .collect();
-    names.truncate(n);
-
-    // Paragraph blocks: runs of lines from a para_start to a para_end.
+/// Paragraph blocks of a corpus: runs of lines from a `para_start` to a
+/// `para_end`, as `(start, end)` line ranges.
+pub fn paragraph_blocks(corpus: &Corpus) -> Vec<(usize, usize)> {
     let mut blocks: Vec<(usize, usize)> = Vec::new();
     let mut start = 0usize;
     for (i, l) in corpus.lines.iter().enumerate() {
@@ -537,25 +561,69 @@ pub fn build_target(corpus: &Corpus, resamples: u32, bootstrap_seed: u64) -> Tar
     if start < corpus.lines.len() {
         blocks.push((start, corpus.lines.len()));
     }
+    blocks
+}
+
+/// One paragraph-block bootstrap resample with at least as many words as
+/// the corpus.
+pub fn resample_blocks(corpus: &Corpus, blocks: &[(usize, usize)], rng: &mut Rng) -> Corpus {
     let total_words = corpus.word_count();
+    let mut sample = Corpus {
+        pages: corpus.pages.clone(),
+        lines: Vec::with_capacity(corpus.lines.len()),
+    };
+    let mut words = 0usize;
+    while words < total_words && !blocks.is_empty() {
+        let (a, b) = blocks[rng.below(blocks.len())];
+        for l in &corpus.lines[a..b] {
+            words += l.words.len();
+            sample.lines.push(l.clone());
+        }
+    }
+    sample
+}
+
+/// Distances of `resamples` paragraph-block bootstrap resamples of a corpus
+/// to a target: the spread a "true generator" of that corpus would show.
+pub fn bootstrap_distances(
+    corpus: &Corpus,
+    target: &Target,
+    resamples: u32,
+    seed: u64,
+) -> Result<Vec<f64>, CoreError> {
+    let blocks = paragraph_blocks(corpus);
+    let mut rng = Rng::new("bootstrap-distance", seed);
+    let mut out = Vec::with_capacity(resamples as usize);
+    for _ in 0..resamples {
+        let sample = resample_blocks(corpus, &blocks, &mut rng);
+        out.push(vah_stats::distance(
+            &vah_stats::fingerprint(&sample),
+            target,
+        )?);
+    }
+    Ok(out)
+}
+
+/// Build a target from a reference corpus. `mean` is the corpus fingerprint;
+/// `scale` is the standard deviation of the fingerprint over `resamples`
+/// paragraph-block bootstrap resamples (the corpus's own variability), with
+/// a floor of 1e-6 so that a constant statistic still has a usable scale.
+pub fn build_target(corpus: &Corpus, resamples: u32, bootstrap_seed: u64) -> Target {
+    let base = vah_stats::fingerprint(corpus);
+    let n = base.values.len();
+    let mut names: Vec<String> = vah_stats::STAT_NAMES
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    names.truncate(n);
+    let blocks = paragraph_blocks(corpus);
 
     let mut sum = vec![0.0f64; n];
     let mut sumsq = vec![0.0f64; n];
     let mut rng = Rng::new("bootstrap", bootstrap_seed);
     let done = if blocks.is_empty() { 0 } else { resamples };
     for _ in 0..done {
-        let mut sample = Corpus {
-            pages: corpus.pages.clone(),
-            lines: Vec::with_capacity(corpus.lines.len()),
-        };
-        let mut words = 0usize;
-        while words < total_words {
-            let (a, b) = blocks[rng.below(blocks.len())];
-            for l in &corpus.lines[a..b] {
-                words += l.words.len();
-                sample.lines.push(l.clone());
-            }
-        }
+        let sample = resample_blocks(corpus, &blocks, &mut rng);
         let fp = vah_stats::fingerprint(&sample);
         for i in 0..n {
             sum[i] += fp.values[i];

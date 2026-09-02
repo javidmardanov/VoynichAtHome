@@ -1,0 +1,79 @@
+# Calibration: can the screen find a planted answer, and does it reject what it should?
+
+*Gate 2 tooling and first results, 2026-09-02, kernel at draft 2 plus the sweep and calibration commands. All numbers are development results on unregistered weights. The statistical-methods lead decides the registered rule; this document gives that person the tools, the evidence and a recommendation.*
+
+## Method
+
+1. **Plant.** `voynich plant` generates a pseudo-manuscript from a hidden parameter point of a generator family, on the manuscript's own line and paragraph layout (discovery + validation quires, 28,367 words), and builds a target from it exactly as the real target is built (paragraph-block bootstrap, 200 resamples). The hidden parameters go into `answer.json`; under the protocol the custodian holds that file.
+2. **Sweep.** `voynich sweep` runs a registered grid of parameter points on one machine, every point with the same fixed number of replicates (seeds `0..N-1` of the point's stream), and writes a ledger with every replicate's distance and fingerprint. Nothing is dropped.
+3. **Calibrate.** `voynich calibrate` measures the true generator's own spread (M replicates of the hidden point against the planted target), derives thresholds from it, applies candidate acceptance rules to every grid point, checks whether the hidden point is recovered and how many other points pass, and scores the three controls (`bagofwords`, `charmarkov`, `gibberish`, all trained on the pseudo-manuscript) under the same rules.
+
+Three candidate rules were evaluated:
+
+- **Rule A (acceptance probability).** ε = 99th percentile of the true generator's self-distances. A point is compatible when the Wilson lower confidence bound of P(d ≤ ε) over its N replicates exceeds 0.5.
+- **Rule B (replicate cloud).** For each point, the target's distance to the centroid of the point's replicates is ranked against the replicates' own leave-one-out centroid distances; p = (1 + number of replicates farther than the target) / (N + 1). Compatible when p > α.
+- **Rule C (tail-robust median).** ε_med = 99th percentile of the medians of random N-subsets of the true generator's self-distances (2,000 draws). A point is compatible when the median of its N replicate distances is at or below ε_med.
+
+Grid: self-citation family, 6 × 4 × 3 × 3 = 216 points (`p_modify`, `window_lines`, `w_delete`, `max_len`), N = 8 replicates, M = 64 self-replicates, 16 replicates per control. One coarse sweep takes 38 s on four slow cores.
+
+## Results
+
+### Planted point on the grid (`p_modify` 0.8, `window_lines` 4, `w_delete` 2, `max_len` 8)
+
+The planted text is degenerate: the generator collapsed into a few repeated short words (`kacn.kacn.kacm...`). Its self-distances are heavy-tailed: of 64 replicates, 54 lie between 1.3 and 4.2, seven between 6.7 and 26, and two at 77 and 1,152. The same parameters give very different corpora on different seeds: the process is path-dependent, and a single corpus's block bootstrap cannot see that.
+
+| Rule | Threshold | Hidden point | Compatible grid points | Controls |
+|---|---|---|---|---|
+| A | ε = 475 (99th percentile, inflated by the tail) | passes | 141 of 216 | bag-of-words and gibberish **accepted** |
+| B (α = 0.2) | none | passes (p = 1.0) | 108 of 216 | rejected |
+| C | ε_med = 5.04 | **recovered** (median 2.66, rank 1 of 216) | 2 of 216 (the point and its `window_lines` = 8 neighbour) | rejected (medians 31, 135, 20,647) |
+
+### Planted point off the grid (`p_modify` 0.75, `window_lines` 3, `w_delete` 2.5, `max_len` 9)
+
+Self-distances are tight: 1.18 to 2.93 over 64 replicates.
+
+| Rule | Threshold | Nearest grid point | Compatible grid points | Controls |
+|---|---|---|---|---|
+| A | ε = 2.85 | fails (median 9.14, rank 9 of 216) | 0 of 216 | rejected |
+| B (α = 0.2) | none | fails (p = 0.11) | 35 of 216 | rejected |
+| C | ε_med = 2.31 | fails | 0 of 216 | rejected (medians 27, 209, 34) |
+
+This is the correct answer for a grid that does not contain the point: the best grid point has median 7.6, three times the threshold. The fingerprint resolves a change of 0.05 in `p_modify` or of one line in `window_lines` on a corpus of this size.
+
+### Same off-grid point, refined grid (3 × 3 × 3 × 3 = 81 points around the best coarse region; the point is on this grid)
+
+| Rule | Hidden point | Compatible grid points | Controls |
+|---|---|---|---|
+| A | recovered (rank 1 of 81) | 1 of 81 | rejected |
+| B (α = 0.2) | recovered (p = 0.78) | 10 of 81 | rejected |
+| C | **recovered** (median 2.13, rank 1 of 81) | 1 of 81, the true point | rejected |
+
+## What this shows
+
+1. **Rule C is the working candidate.** It recovered the planted point whenever the grid contained it, uniquely or nearly so, rejected every control in every run, and found nothing when the grid did not contain the point. Rule A breaks as soon as the true generator has a heavy tail; rule B is vacuous at N = 8 and α = 0.1 (the smallest possible p is 1/9) and too permissive for wide replicate clouds.
+2. **Path-dependent generators need per-family calibration of the threshold.** The self-citation family's spread across seeds varies by two orders of magnitude between nearby parameter points. A threshold derived from a single planted point is not a constant of the experiment; the registered ε_med must come from several planted points per family, and the registration must say how they are chosen.
+3. **The sweep must be coarse-to-fine.** A coarse grid cannot contain the manuscript's parameters by luck, and the fingerprint is sensitive enough to reject every neighbour. The registered search is therefore an adaptive procedure: coarse grid → refine around the best region (by median) → repeat until the grid step is below the resolution at which neighbours become indistinguishable. Every level is a registered grid with its own ledger. This multiplies the simulation count by the number of levels, not by orders of magnitude.
+4. **The self-citation generator, as implemented here, collapses over much of its parameter space.** The on-grid planted text is a handful of repeated words. Whether the original authors' model has the same property is a fidelity question for the domain advisor; the point for the platform is that the calibration tooling exposes it.
+5. **The bootstrap scale is a rough normaliser and biased for repetition statistics.** Resampling paragraph blocks with replacement duplicates paragraphs, which shifts the repetition, type-token and hapax statistics of every resample away from the original. Visible consequence: the manuscript's own block-bootstrap resamples sit at distance 3.2 to 4.6 from the manuscript's target (median 3.8), where a perfect normaliser would give about 1. Planted fresh replicates sit at 1.2 to 2.9. Candidates for the statistician: a subsampling estimator without replacement, a half-split estimator, or a covariance-based (Mahalanobis) distance with regularisation.
+
+## Recommendation to the statistical-methods lead
+
+- Primary rule: rule C, with ε_med calibrated per family from at least five planted points spread over the parameter space, and N fixed at 16 or more for the confirmation level (N = 8 is enough for coarse levels).
+- Report per point: median, acceptance probability with its Wilson interval (rule A's quantities, informative even when not decisive), and the replicate cloud statistics (rule B's quantities). Acceptance by rule C only.
+- Search: coarse-to-fine with registered levels; the refinement stopping rule is part of the registration.
+- Before ε is frozen: replace or validate the bootstrap scale (point 5 above), and decide between the weighted z-distance and a regularised Mahalanobis distance.
+
+## Reproduce
+
+```sh
+cd kernel && cargo build --release -p vah-cli
+V=target/release/voynich; C=../pipeline/calibration; L=../pipeline/targets/layout_v1.json
+$V plant --family selfcite --params '{"p_modify":0.8,"window_lines":4,"w_delete":2,"max_len":8}' --layout $L --seed 1 --out $C/planted-on-grid
+$V plant --family selfcite --params '{"p_modify":0.75,"window_lines":3,"w_delete":2.5,"max_len":9}' --layout $L --seed 2 --out $C/planted-off-grid
+$V calibrate --planted $C/planted-on-grid  --grid $C/grid_selfcite_v1.json --alpha 0.2 --out $C/report-on-grid.json
+$V calibrate --planted $C/planted-off-grid --grid $C/grid_selfcite_v1.json --alpha 0.2 --out $C/report-off-grid.json
+$V calibrate --planted $C/planted-off-grid --grid $C/grid_selfcite_v1_refined.json --alpha 0.2 --out $C/report-off-grid-refined.json
+$V self-distance ../data/ZL3b-n.txt --targets ../pipeline/targets --partition ../pipeline/partitions_v1.json
+```
+
+Every step is deterministic: the same commands give the same ledgers and reports, byte for byte.

@@ -1,0 +1,5 @@
+# Regenerated deterministically by `voynich plant` and `voynich calibrate`
+# (see docs/CALIBRATION.md); kept out of git for size.
+*.ledger.jsonl
+planted-*/layout_v1.json
+planted-*/resources_v1.json
