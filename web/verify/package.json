@@ -1,0 +1,14 @@
+{
+  "name": "vah-verify-page",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Voynich@Home browser verification page and its headless end-to-end check",
+  "scripts": {
+    "build": "./build.sh",
+    "e2e": "node e2e.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.56.0"
+  }
+}

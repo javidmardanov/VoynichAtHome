@@ -13,6 +13,11 @@
 //!   a corpus (matches short-range statistics by construction).
 //! * `selfcite`   — candidate mechanism: copy a nearby word and modify it
 //!   (the self-citation family of Timm & Schinner, own parameterisation).
+//! * `slotgram`   — candidate mechanism: every word is built left to right
+//!   from ordered slots, each slot filled with one of its allowed glyph
+//!   groups or left empty (the slot-grammar family; the default table is
+//!   an approximation of Zattera's twelve-slot structure and must be
+//!   verified by the domain advisor).
 #![forbid(unsafe_code)]
 
 use std::collections::BTreeMap;
@@ -276,7 +281,13 @@ pub trait TextGenerator {
 }
 
 /// All family identifiers.
-pub const FAMILIES: [&str; 4] = ["gibberish", "bagofwords", "charmarkov", "selfcite"];
+pub const FAMILIES: [&str; 5] = [
+    "gibberish",
+    "bagofwords",
+    "charmarkov",
+    "selfcite",
+    "slotgram",
+];
 
 /// Build a generator from its family name and parameters.
 pub fn build(
@@ -289,6 +300,7 @@ pub fn build(
         "bagofwords" => Ok(Box::new(BagOfWords::from_params(params, res)?)),
         "charmarkov" => Ok(Box::new(CharMarkov::from_params(params, res)?)),
         "selfcite" => Ok(Box::new(SelfCite::from_params(params)?)),
+        "slotgram" => Ok(Box::new(SlotGram::from_params(params)?)),
         other => Err(GenError::UnknownFamily(other.to_string())),
     }
 }
@@ -823,6 +835,181 @@ impl TextGenerator for SelfCite {
     }
 }
 
+// ---------------------------------------------------------------------------
+// slotgram
+
+/// Default slot table: an approximation of the twelve-slot word structure
+/// described by Zattera (2022) for the EVA/Slot alphabets. Slots are
+/// separated by `|`, alternatives by `,`; `_` is the empty alternative.
+/// **To be verified against the published table by the domain advisor
+/// before any registered use.** The table is a parameter, so the verified
+/// version replaces this default without code changes.
+pub const DEFAULT_SLOTS: &str =
+    "q,_|o,y,s,d,_|l,r,_|t,k,p,f,_|ch,sh,_|e,ee,eee,_|t,k,p,f,_|o,a,_|i,ii,iii,_|d,l,r,m,n,_|y,_";
+
+/// Slot-grammar word generator.
+///
+/// Parameters:
+/// * `slots`: the table (see [`DEFAULT_SLOTS`]).
+/// * `p_fill`: probability that a slot is filled, applied to every slot, or
+///   `p_fill_slots`: comma-separated per-slot probabilities.
+/// * `zipf_s`: within a slot, alternative weights follow `1/rank^s` in
+///   table order (0 = uniform).
+/// * `min_len`: words shorter than this are redrawn (default 1).
+/// * `p_repeat`: probability that a word repeats the previous word of the
+///   line verbatim (0 by default; a cheap way to add the manuscript's
+///   adjacent repeats without a copy process).
+pub struct SlotGram {
+    slots: Vec<Vec<Vec<u8>>>,
+    fill: Vec<f64>,
+    cums: Vec<Vec<u64>>,
+    min_len: usize,
+    p_repeat: f64,
+}
+
+impl SlotGram {
+    pub fn from_params(p: &Params) -> Result<Self, GenError> {
+        let table = get_str(p, "slots", DEFAULT_SLOTS)?;
+        let mut slots: Vec<Vec<Vec<u8>>> = Vec::new();
+        for slot in table.split('|') {
+            let alts: Vec<Vec<u8>> = slot
+                .split(',')
+                .map(|a| a.trim())
+                .filter(|a| !a.is_empty() && *a != "_")
+                .map(|a| {
+                    a.bytes()
+                        .filter(|b| b.is_ascii_alphanumeric())
+                        .collect::<Vec<u8>>()
+                })
+                .filter(|a| !a.is_empty())
+                .collect();
+            if alts.is_empty() {
+                return Err(GenError::BadParam(
+                    "every slot needs at least one non-empty alternative".into(),
+                ));
+            }
+            slots.push(alts);
+        }
+        if slots.is_empty() || slots.len() > 32 {
+            return Err(GenError::BadParam("slots must have 1..=32 entries".into()));
+        }
+        let p_fill = prob(p, "p_fill", 0.35)?;
+        let fill: Vec<f64> = match p.get("p_fill_slots") {
+            None => vec![p_fill; slots.len()],
+            Some(v) => {
+                let s = v
+                    .as_str()
+                    .ok_or_else(|| GenError::BadParam("p_fill_slots must be a string".into()))?;
+                let vals: Result<Vec<f64>, _> =
+                    s.split(',').map(|x| x.trim().parse::<f64>()).collect();
+                let vals = vals.map_err(|_| {
+                    GenError::BadParam("p_fill_slots must be comma-separated numbers".into())
+                })?;
+                if vals.len() != slots.len() || vals.iter().any(|x| !(0.0..=1.0).contains(x)) {
+                    return Err(GenError::BadParam(format!(
+                        "p_fill_slots needs {} values in [0, 1]",
+                        slots.len()
+                    )));
+                }
+                vals
+            }
+        };
+        let zipf_s = get_f64(p, "zipf_s", 0.0)?;
+        if !(0.0..=4.0).contains(&zipf_s) {
+            return Err(GenError::BadParam("zipf_s must be in [0, 4]".into()));
+        }
+        let cums = slots
+            .iter()
+            .map(|alts| {
+                let mut acc = 0u64;
+                alts.iter()
+                    .enumerate()
+                    .map(|(i, _)| {
+                        let w = if zipf_s == 0.0 {
+                            1_000_000.0
+                        } else {
+                            1_000_000.0 / pow_int_base((i + 1) as f64, zipf_s)
+                        };
+                        acc += (w as u64).max(1);
+                        acc
+                    })
+                    .collect()
+            })
+            .collect();
+        let min_len = get_u64(p, "min_len", 1)?.clamp(1, 8) as usize;
+        let p_repeat = prob(p, "p_repeat", 0.0)?;
+        Ok(SlotGram {
+            slots,
+            fill,
+            cums,
+            min_len,
+            p_repeat,
+        })
+    }
+
+    fn word(&self, rng: &mut Rng) -> String {
+        for _ in 0..64 {
+            let mut w: Vec<u8> = Vec::new();
+            for (i, alts) in self.slots.iter().enumerate() {
+                if rng.chance(self.fill[i]) {
+                    w.extend_from_slice(&alts[rng.weighted(&self.cums[i])]);
+                }
+            }
+            if w.len() >= self.min_len {
+                return String::from_utf8(w).expect("ascii glyphs");
+            }
+        }
+        // extremely unlikely: fall back to the first alternative of the first slot
+        String::from_utf8(self.slots[0][0].clone()).expect("ascii glyphs")
+    }
+
+    /// Does `word` parse as a sequence of the table's slots in order? Used
+    /// as the slot-conformance statistic.
+    pub fn conforms(&self, word: &[u8]) -> bool {
+        // dynamic programming over (slot index, position)
+        let n = word.len();
+        let mut reach = vec![false; n + 1];
+        reach[0] = true;
+        for alts in &self.slots {
+            let mut next = reach.clone(); // slot left empty
+            for pos in 0..=n {
+                if !reach[pos] {
+                    continue;
+                }
+                for a in alts {
+                    if word[pos..].starts_with(a) {
+                        next[pos + a.len()] = true;
+                    }
+                }
+            }
+            reach = next;
+        }
+        reach[n]
+    }
+}
+
+impl TextGenerator for SlotGram {
+    fn family_id(&self) -> &'static str {
+        "slotgram"
+    }
+    fn generate(&self, rng: &mut Rng, layout: &Layout) -> Corpus {
+        let mut prev: Option<String> = None;
+        let mut current_line = usize::MAX;
+        fill(rng, layout, |rng, li, _| {
+            if li != current_line {
+                current_line = li;
+                prev = None;
+            }
+            let w = match &prev {
+                Some(p) if rng.chance(self.p_repeat) => p.clone(),
+                _ => self.word(rng),
+            };
+            prev = Some(w.clone());
+            w
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -936,6 +1123,37 @@ mod tests {
             build("bagofwords", &params("{}"), &res),
             Err(GenError::MissingResource("word_bag"))
         ));
+    }
+
+    #[test]
+    fn slotgram_words_conform_to_their_table_and_params_are_checked() {
+        let g = SlotGram::from_params(&params("{}")).unwrap();
+        let out = g.generate(&mut Rng::new("s", 1), &Layout::uniform(60, 8, 10));
+        assert!(
+            out.words().all(|w| g.conforms(w.as_bytes())),
+            "every generated word parses"
+        );
+        assert!(g.conforms(b"qokeedy"));
+        assert!(g.conforms(b"daiin"));
+        assert!(g.conforms(b"chol"));
+        assert!(!g.conforms(b"kkkk"));
+        assert!(!g.conforms(b"zzz"));
+        let custom = SlotGram::from_params(&params(r#"{"slots":"a,b|c,_","p_fill":1.0}"#)).unwrap();
+        let out = custom.generate(&mut Rng::new("s", 2), &Layout::uniform(5, 10, 5));
+        assert!(out.words().all(|w| w == "ac" || w == "bc"));
+        assert!(matches!(
+            SlotGram::from_params(&params(r#"{"slots":"_,_"}"#)),
+            Err(GenError::BadParam(_))
+        ));
+        assert!(matches!(
+            SlotGram::from_params(&params(r#"{"p_fill_slots":"0.5,0.5"}"#)),
+            Err(GenError::BadParam(_))
+        ));
+        let rep = SlotGram::from_params(&params(r#"{"p_repeat":1.0}"#)).unwrap();
+        let out = rep.generate(&mut Rng::new("s", 3), &Layout::uniform(3, 6, 3));
+        for l in &out.lines {
+            assert!(l.words.iter().all(|w| w == &l.words[0]));
+        }
     }
 
     #[test]

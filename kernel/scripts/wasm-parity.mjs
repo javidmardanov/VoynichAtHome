@@ -19,7 +19,7 @@ const module = new WebAssembly.Module(bytes);
 // must export exactly the documented C ABI. Anything else fails CI.
 const ALLOWED_IMPORTS = ["env.vah_progress"];
 const EXPECTED_EXPORTS = [
-  "memory", "vah_alloc", "vah_free", "vah_run_job", "vah_out_ptr", "vah_out_len", "vah_out_clear",
+  "memory", "vah_alloc", "vah_free", "vah_run_job", "vah_generate_seed", "vah_out_ptr", "vah_out_len", "vah_out_clear",
   "vah_kernel_version_ptr", "vah_kernel_version_len",
 ];
 const imports = WebAssembly.Module.imports(module).map((i) => `${i.module}.${i.name}`);

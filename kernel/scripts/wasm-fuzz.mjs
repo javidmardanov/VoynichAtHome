@@ -47,6 +47,8 @@ function randomParams(family) {
       return {};
     case "charmarkov":
       return { order: 3, max_len: int(8, 24) };
+    case "slotgram":
+      return { p_fill: between(0.2, 0.7), zipf_s: between(0, 1.5), p_repeat: between(0, 0.05, 3), min_len: int(1, 3) };
     default:
       return {
         p_modify: between(0.3, 1.0), window_lines: int(0, 8), p_current_line: between(0, 1), p_new_word: between(0, 0.1, 3),
@@ -59,7 +61,7 @@ function randomParams(family) {
 const dir = mkdtempSync(join(tmpdir(), "vah-fuzz-"));
 let failures = 0;
 for (let i = 0; i < count; i++) {
-  const family = pick(["gibberish", "bagofwords", "charmarkov", "selfcite", "selfcite"]);
+  const family = pick(["gibberish", "bagofwords", "charmarkov", "selfcite", "selfcite", "slotgram"]);
   const params = randomParams(family);
   // exercise decimal-string parameters as the registered schema requires
   const args = [

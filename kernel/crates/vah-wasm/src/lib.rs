@@ -7,6 +7,7 @@
 //! vah_alloc(len) -> ptr            allocate an input buffer in wasm memory
 //! vah_free(ptr, len)               release a buffer from vah_alloc
 //! vah_run_job(ptr, len) -> status  run the job JSON at ptr; 0 = ok, 1 = error
+//! vah_generate_seed(ptr, len, seed)  text of one seed of the job, into the output buffer
 //! vah_out_ptr() / vah_out_len()    the result (or error) JSON of the last run
 //! vah_out_clear()                  release the result buffer
 //! vah_kernel_version_ptr()/_len()  the kernel version string
@@ -85,6 +86,36 @@ pub unsafe extern "C" fn vah_run_job(ptr: *const u8, len: usize) -> u32 {
     match run_job_str(job) {
         Ok(json) => {
             set_output(json.into_bytes());
+            0
+        }
+        Err(msg) => {
+            let escaped = msg.replace('\\', "\\\\").replace('"', "\\\"");
+            set_output(format!("{{\"error\":\"{escaped}\"}}").into_bytes());
+            1
+        }
+    }
+}
+
+/// Generate the text of one seed of the job JSON at `ptr` and place it in
+/// the output buffer (for specimens and the verification page). Returns 0
+/// on success, 1 on error (the output then holds an error JSON).
+///
+/// # Safety
+/// `ptr..ptr+len` must be readable wasm memory holding UTF-8 JSON.
+#[no_mangle]
+pub unsafe extern "C" fn vah_generate_seed(ptr: *const u8, len: usize, seed: u64) -> u32 {
+    let bytes = std::slice::from_raw_parts(ptr, len);
+    let text = std::str::from_utf8(bytes)
+        .map_err(|e| e.to_string())
+        .and_then(|s| {
+            let job = vah_core::parse_job(s).map_err(|e| e.to_string())?;
+            vah_core::generate_seed(&job, seed)
+                .map(|c| c.to_text())
+                .map_err(|e| e.to_string())
+        });
+    match text {
+        Ok(t) => {
+            set_output(t.into_bytes());
             0
         }
         Err(msg) => {

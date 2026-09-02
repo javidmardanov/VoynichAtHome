@@ -17,8 +17,10 @@ What a result can mean, exactly: a negative result says that no tested implement
 | [`docs/SYNTHESIS.md`](docs/SYNTHESIS.md) | **The merged design, draft 2.** What changed after review, boundary-by-boundary decisions, the first registered experiment in outline, the numeric profile and the conditions for exact-equality validation, the security boundary, data, partitions, roadmap, human roles, rejected mechanisms, open points |
 | [`docs/PLAN.md`](docs/PLAN.md), [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | This proposal's original plan and system design; the synthesis governs where they differ |
 | [`docs/research/`](docs/research/) | Literature review and platform review (with a correction note on the BOINC conclusion) |
+| [`docs/RECRUITING.md`](docs/RECRUITING.md), [`docs/RECRUITING.ru.md`](docs/RECRUITING.ru.md) | One page for the people we ask to join: what exists, what is not claimed, the three roles |
+| [`web/verify/`](web/verify/) | Browser verification page: run one registered unit, check the hash |
 | [`contracts/`](contracts/) | Which schema suite is authoritative, the migration plan, and the RFC 8785 conformance vectors both languages must pass |
-| [`kernel/`](kernel/) | **The science kernel** (Rust workspace): IVTFF parser, `fingerprint-v1`, four generator families, content-addressed work units, executor, `voynich` CLI, WebAssembly module, golden jobs, parity and fuzz scripts. See [`kernel/README.md`](kernel/README.md) |
+| [`kernel/`](kernel/) | **The science kernel** (Rust workspace): IVTFF parser, `fingerprint-v1`, five generator families, content-addressed work units, executor, `voynich` CLI, WebAssembly module, golden jobs, parity and fuzz scripts. See [`kernel/README.md`](kernel/README.md) |
 | [`pipeline/`](pipeline/) | `fetch_data.sh` (downloads and verifies the transliterations; never committed), `build_targets.sh`, `THIRD-PARTY-NOTICES.md`, the quire partition `partitions_v1.json`, and the committed derived artifacts in `targets/` |
 | [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | Format, clippy determinism lints, all tests, goldens, wasm build, import/export allowlist, golden and randomised parity |
 
@@ -51,6 +53,7 @@ Development sanity checks against that target (weighted z-distance; the manuscri
 | Manuscript, Currier B pages only | 4.4 |
 | `bagofwords` control (same words, random order) | 8.6 |
 | `charmarkov` control (order-3 glyph Markov trained on the same quires) | 9.9 |
+| `slotgram` candidate (slot grammar, default table), default parameters | 30 |
 | `selfcite` candidate, default parameters | 55 |
 | `gibberish` control | 63 |
 
@@ -59,6 +62,14 @@ Two readings. The fingerprint separates order-preserving structure from order-de
 ## Can the screen find a planted answer?
 
 Yes, in the first calibration. A pseudo-manuscript generated from hidden self-citation parameters was recovered as the unique compatible point of an 81-point grid, every control was rejected, and a grid that did not contain the hidden point correctly yielded no compatible point. The rule that achieved this is a tail-robust median rule; the naive acceptance-probability rule broke on a parameter region where the generator collapses into repeated words. Method, numbers and the recommendation to the statistician are in [`docs/CALIBRATION.md`](docs/CALIBRATION.md).
+
+## Verify a unit in your browser
+
+`web/verify` is a static page: it loads the kernel as WebAssembly, checks the module digest against a release manifest, runs one golden work unit in a Web Worker, and compares the result hash with the published one. It needs no server, no account and sends nothing. A Playwright check runs it headlessly in CI. The owner can publish it with GitHub Pages (Settings → Pages → Source: GitHub Actions; the `verification page` workflow then deploys it). Local run:
+
+```sh
+web/verify/build.sh && (cd web/verify && PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm install && node e2e.mjs)
+```
 
 ## Run it
 

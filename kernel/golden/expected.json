@@ -28,5 +28,11 @@
     "distance_median": 60.76021266824374,
     "specimen_seed": 0,
     "specimen_distance": 57.85946809823727
+  },
+  "slotgram.job.json": {
+    "result_hash": "sha256:29ab6d1d0dd234f7e65de2990ef1ff4564dce8b3857a2a308b3362a2b9e4b266",
+    "distance_median": 31.045748680172917,
+    "specimen_seed": 4,
+    "specimen_distance": 30.72753446019142
   }
 }

@@ -47,3 +47,10 @@ jobs:
         run: node scripts/wasm-parity.mjs golden
       - name: Randomised native/wasm parity (40 jobs)
         run: node scripts/wasm-fuzz.mjs 40 1
+      - name: Verification page end to end (Playwright, Chromium)
+        working-directory: web/verify
+        run: |
+          ./build.sh
+          npm install
+          npx playwright install --with-deps chromium
+          node e2e.mjs

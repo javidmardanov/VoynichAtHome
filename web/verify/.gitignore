@@ -1,0 +1,6 @@
+vah_wasm.wasm
+job.json
+expected.json
+manifest.json
+node_modules/
+package-lock.json
