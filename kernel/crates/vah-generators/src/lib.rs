@@ -293,22 +293,47 @@ pub fn build(
     }
 }
 
+/// Is `s` a plain decimal literal (`-?(0|[1-9][0-9]*)(\.[0-9]+)?`)? The
+/// registered work-unit schema carries numeric parameters as such strings.
+fn is_decimal_literal(s: &str) -> bool {
+    let s = s.strip_prefix('-').unwrap_or(s);
+    let (int, frac) = match s.split_once('.') {
+        Some((a, b)) => (a, Some(b)),
+        None => (s, None),
+    };
+    let int_ok = int == "0"
+        || (!int.is_empty() && !int.starts_with('0') && int.bytes().all(|b| b.is_ascii_digit()));
+    let frac_ok = frac.is_none_or(|f| !f.is_empty() && f.bytes().all(|b| b.is_ascii_digit()));
+    int_ok && frac_ok
+}
+
 fn get_f64(p: &Params, key: &str, default: f64) -> Result<f64, GenError> {
+    let err = || GenError::BadParam(format!("{key} must be a finite number or a decimal string"));
     match p.get(key) {
         None => Ok(default),
-        Some(v) => v
-            .as_f64()
+        Some(Value::String(s)) if is_decimal_literal(s) => s
+            .parse::<f64>()
+            .ok()
             .filter(|x| x.is_finite())
-            .ok_or_else(|| GenError::BadParam(format!("{key} must be a finite number"))),
+            .ok_or_else(err),
+        Some(v) => v.as_f64().filter(|x| x.is_finite()).ok_or_else(err),
     }
 }
 
 fn get_u64(p: &Params, key: &str, default: u64) -> Result<u64, GenError> {
+    let err = || {
+        GenError::BadParam(format!(
+            "{key} must be a non-negative integer or an integer string"
+        ))
+    };
     match p.get(key) {
         None => Ok(default),
-        Some(v) => v
-            .as_u64()
-            .ok_or_else(|| GenError::BadParam(format!("{key} must be a non-negative integer"))),
+        Some(Value::String(s))
+            if is_decimal_literal(s) && !s.contains('.') && !s.starts_with('-') =>
+        {
+            s.parse::<u64>().map_err(|_| err())
+        }
+        Some(v) => v.as_u64().ok_or_else(err),
     }
 }
 
@@ -930,6 +955,51 @@ mod tests {
             "repeats {repeats}"
         );
         assert!(words.iter().all(|w| w.len() <= 8));
+    }
+
+    #[test]
+    fn numeric_parameters_accept_decimal_strings() {
+        let a = build(
+            "selfcite",
+            &params(r#"{"p_modify": "0.6", "window_lines": "3"}"#),
+            &Resources::default(),
+        )
+        .unwrap();
+        let b = build(
+            "selfcite",
+            &params(r#"{"p_modify": 0.6, "window_lines": 3}"#),
+            &Resources::default(),
+        )
+        .unwrap();
+        let layout = Layout::uniform(10, 6, 5);
+        assert_eq!(
+            a.generate(&mut Rng::new("s", 1), &layout),
+            b.generate(&mut Rng::new("s", 1), &layout)
+        );
+        assert!(matches!(
+            build(
+                "selfcite",
+                &params(r#"{"p_modify": "0.60x"}"#),
+                &Resources::default()
+            ),
+            Err(GenError::BadParam(_))
+        ));
+        assert!(matches!(
+            build(
+                "selfcite",
+                &params(r#"{"window_lines": "-3"}"#),
+                &Resources::default()
+            ),
+            Err(GenError::BadParam(_))
+        ));
+        assert!(matches!(
+            build(
+                "selfcite",
+                &params(r#"{"window_lines": "03"}"#),
+                &Resources::default()
+            ),
+            Err(GenError::BadParam(_))
+        ));
     }
 
     #[test]

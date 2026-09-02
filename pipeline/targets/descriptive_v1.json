@@ -1,6 +1,8 @@
 {
   "currier": null,
   "lines": 4130,
+  "partition_digest": null,
+  "roles": [],
   "source_digest": "sha256:275e61d21a3678c0579fede309ddf2f462b64a0a49b01de9bcaa83b3d7792839",
   "stats": {
     "adjacent_edit1": 0.03373881110856094,

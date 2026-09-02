@@ -108,6 +108,8 @@ pub struct Target {
 pub enum TargetError {
     VersionMismatch { fingerprint: String, target: String },
     Shape,
+    Invalid(String),
+    NonFinite(String),
 }
 
 impl std::fmt::Display for TargetError {
@@ -123,6 +125,8 @@ impl std::fmt::Display for TargetError {
                 )
             }
             TargetError::Shape => write!(f, "target vectors have inconsistent lengths"),
+            TargetError::Invalid(s) => write!(f, "invalid target: {s}"),
+            TargetError::NonFinite(s) => write!(f, "non-finite value: {s}"),
         }
     }
 }
@@ -130,7 +134,9 @@ impl std::fmt::Display for TargetError {
 impl std::error::Error for TargetError {}
 
 impl Target {
-    /// Check internal consistency.
+    /// Check internal consistency: shape and names, every value finite,
+    /// every scale strictly positive, every weight non-negative with a
+    /// positive total.
     pub fn validate(&self) -> Result<(), TargetError> {
         let n = STAT_NAMES.len();
         if self.names.len() != n
@@ -148,13 +154,44 @@ impl Target {
         {
             return Err(TargetError::Shape);
         }
+        for i in 0..n {
+            if !self.mean[i].is_finite()
+                || !self.scale[i].is_finite()
+                || !self.weight[i].is_finite()
+            {
+                return Err(TargetError::Invalid(format!(
+                    "{}: non-finite value",
+                    self.names[i]
+                )));
+            }
+            if self.scale[i] <= 0.0 {
+                return Err(TargetError::Invalid(format!(
+                    "{}: scale must be > 0",
+                    self.names[i]
+                )));
+            }
+            if self.weight[i] < 0.0 {
+                return Err(TargetError::Invalid(format!(
+                    "{}: weight must be >= 0",
+                    self.names[i]
+                )));
+            }
+        }
+        if self.weight.iter().sum::<f64>() <= 0.0 {
+            return Err(TargetError::Invalid(
+                "weights must not all be zero".to_string(),
+            ));
+        }
         Ok(())
     }
 }
 
 /// Weighted root-mean-square z-distance between a fingerprint and a target:
 /// `sqrt(sum_i w_i ((f_i - m_i) / s_i)^2 / sum_i w_i)`.
-/// A scale of zero is treated as one to avoid division by zero.
+/// Note: this treats the statistics as uncorrelated. Several of them are
+/// strongly correlated (the word-length histogram sums to one), so the
+/// registered primary metric may instead be a Mahalanobis distance with a
+/// regularised bootstrap covariance; that is a Gate 2 decision.
 pub fn distance(f: &Fingerprint, t: &Target) -> Result<f64, TargetError> {
     t.validate()?;
     if f.version != t.version {
@@ -168,16 +205,19 @@ pub fn distance(f: &Fingerprint, t: &Target) -> Result<f64, TargetError> {
     }
     let mut acc = 0.0f64;
     let mut wsum = 0.0f64;
-    for i in 0..f.values.len() {
-        let s = if t.scale[i] == 0.0 { 1.0 } else { t.scale[i] };
-        let z = (f.values[i] - t.mean[i]) / s;
+    for (i, v) in f.values.iter().enumerate() {
+        if !v.is_finite() {
+            return Err(TargetError::NonFinite(STAT_NAMES[i].to_string()));
+        }
+        let z = (v - t.mean[i]) / t.scale[i];
         acc += t.weight[i] * z * z;
         wsum += t.weight[i];
     }
-    if wsum == 0.0 {
-        return Ok(0.0);
+    let d = libm::sqrt(acc / wsum);
+    if !d.is_finite() {
+        return Err(TargetError::NonFinite("distance".to_string()));
     }
-    Ok(libm::sqrt(acc / wsum))
+    Ok(d)
 }
 
 /// Compute the `fingerprint-v1` vector of a corpus.
@@ -204,9 +244,32 @@ pub fn fingerprint(c: &Corpus) -> Fingerprint {
         w.line_len_mean,
     ]);
     debug_assert_eq!(v.len(), STAT_NAMES.len());
+    // Canonical output: negative zero becomes positive zero so that equal
+    // statistics have equal bytes on every platform.
+    for x in v.iter_mut() {
+        if *x == 0.0 {
+            *x = 0.0;
+        }
+    }
     Fingerprint {
         version: VERSION.to_string(),
         values: v,
+    }
+}
+
+/// Median of a slice (deterministic: total-order sort, mean of the middle
+/// two for even counts). Returns 0 for an empty slice.
+pub fn median(values: &[f64]) -> f64 {
+    if values.is_empty() {
+        return 0.0;
+    }
+    let mut v = values.to_vec();
+    v.sort_by(|a, b| a.total_cmp(b));
+    let n = v.len();
+    if n % 2 == 1 {
+        v[n / 2]
+    } else {
+        (v[n / 2 - 1] + v[n / 2]) / 2.0
     }
 }
 
@@ -629,5 +692,29 @@ mod tests {
             distance(&f, &bad),
             Err(TargetError::VersionMismatch { .. })
         ));
+        let mut bad = t.clone();
+        bad.scale[3] = 0.0;
+        assert!(matches!(distance(&f, &bad), Err(TargetError::Invalid(_))));
+        let mut bad = t.clone();
+        bad.weight[3] = -1.0;
+        assert!(matches!(bad.validate(), Err(TargetError::Invalid(_))));
+        let mut bad = t.clone();
+        bad.mean[3] = f64::NAN;
+        assert!(matches!(bad.validate(), Err(TargetError::Invalid(_))));
+        let mut bad = t.clone();
+        bad.weight = vec![0.0; STAT_NAMES.len()];
+        assert!(matches!(bad.validate(), Err(TargetError::Invalid(_))));
+        let mut nan = f.clone();
+        nan.values[0] = f64::NAN;
+        assert!(matches!(distance(&nan, &t), Err(TargetError::NonFinite(_))));
+    }
+
+    #[test]
+    fn output_has_no_negative_zero_and_median_is_deterministic() {
+        let f = fingerprint(&corpus(&["ab.ab.ab"]));
+        assert!(f.values.iter().all(|v| v.to_bits() != (-0.0f64).to_bits()));
+        assert_eq!(median(&[3.0, 1.0, 2.0]), 2.0);
+        assert_eq!(median(&[4.0, 1.0, 3.0, 2.0]), 2.5);
+        assert_eq!(median(&[]), 0.0);
     }
 }

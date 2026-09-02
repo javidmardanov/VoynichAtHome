@@ -1,5 +1,6 @@
 // Run golden jobs in the WebAssembly build of the kernel and compare the
-// result hashes with kernel/golden/expected.json (produced natively).
+// results with kernel/golden/expected.json (produced natively). Also checks
+// the module's import and export surface against an allowlist.
 //
 //   cargo build --release --target wasm32-unknown-unknown -p vah-wasm
 //   node scripts/wasm-parity.mjs [golden-dir] [job.json ...]
@@ -12,14 +13,29 @@ const wasmPath = join(here, "..", "target", "wasm32-unknown-unknown", "release",
 const goldenDir = process.argv[2] ?? join(here, "..", "golden");
 
 const bytes = readFileSync(wasmPath);
-let memory;
-const { instance } = await WebAssembly.instantiate(bytes, {
-  env: { vah_progress: () => {} },
-});
-const ex = instance.exports;
-memory = ex.memory;
+const module = new WebAssembly.Module(bytes);
 
-function runJob(jobText) {
+// Security boundary: the module may import exactly one host function and
+// must export exactly the documented C ABI. Anything else fails CI.
+const ALLOWED_IMPORTS = ["env.vah_progress"];
+const EXPECTED_EXPORTS = [
+  "memory", "vah_alloc", "vah_free", "vah_run_job", "vah_out_ptr", "vah_out_len", "vah_out_clear",
+  "vah_kernel_version_ptr", "vah_kernel_version_len",
+];
+const imports = WebAssembly.Module.imports(module).map((i) => `${i.module}.${i.name}`);
+const exportsList = WebAssembly.Module.exports(module).map((e) => e.name).filter((n) => !n.startsWith("__"));
+const badImports = imports.filter((i) => !ALLOWED_IMPORTS.includes(i));
+const missingExports = EXPECTED_EXPORTS.filter((e) => !exportsList.includes(e));
+const extraExports = exportsList.filter((e) => !EXPECTED_EXPORTS.includes(e));
+if (badImports.length || missingExports.length || extraExports.length) {
+  console.error(`import/export surface changed: bad imports ${JSON.stringify(badImports)}, missing exports ${JSON.stringify(missingExports)}, extra exports ${JSON.stringify(extraExports)}`);
+  process.exit(2);
+}
+
+const instance = await WebAssembly.instantiate(module, { env: { vah_progress: () => {} } });
+const ex = instance.exports;
+
+export function runJob(jobText) {
   const enc = new TextEncoder().encode(jobText);
   const ptr = ex.vah_alloc(enc.length);
   new Uint8Array(ex.memory.buffer, ptr, enc.length).set(enc);
@@ -33,7 +49,7 @@ function runJob(jobText) {
 }
 
 const version = new TextDecoder().decode(new Uint8Array(ex.memory.buffer, ex.vah_kernel_version_ptr(), ex.vah_kernel_version_len()));
-console.log(`wasm kernel ${version}, module ${bytes.length} bytes`);
+console.log(`wasm kernel ${version}, module ${bytes.length} bytes, imports [${imports.join(", ")}]`);
 
 const jobs = process.argv.length > 3
   ? process.argv.slice(3)
@@ -50,7 +66,8 @@ for (const file of jobs) {
   const exp = expected[name];
   if (!exp) {
     console.log(`?     ${name} ${r.result_hash} (${ms} ms, no expectation)`);
-  } else if (exp.result_hash === r.result_hash && exp.best_seed === r.best_seed && exp.best_distance === r.best_distance) {
+  } else if (exp.result_hash === r.result_hash && exp.specimen_seed === r.specimen_seed
+             && exp.specimen_distance === r.specimen_distance && exp.distance_median === r.replicates.distance_median) {
     console.log(`ok    ${name} ${r.result_hash} (${ms} ms)`);
   } else {
     failures++;

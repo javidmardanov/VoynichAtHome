@@ -3,46 +3,58 @@
 //! A [`Job`] bundles everything a worker needs: the [`WorkUnit`] (what to
 //! compute), the registered [`Target`], the [`Layout`] and optional
 //! [`Resources`]. The executor checks that the bundled artifacts match the
-//! digests named in the work unit, runs every seed, and produces a
-//! [`WorkResult`] whose `result_hash` is a SHA-256 over canonical bytes.
-//! Two honest workers on any platform produce the same hash.
+//! digests named in the work unit, validates every input, runs every seed,
+//! and produces a [`WorkResult`] whose `result_hash` is a SHA-256 over
+//! canonical bytes. Two honest workers on any platform produce the same hash
+//! under the numeric profile [`NUMERIC_PROFILE`].
 //!
 //! Identities follow the content-addressing rule of the merged design:
-//! `work_unit_id = sha256(canonical JSON of the work unit)`, where canonical
-//! JSON is compact with keys sorted (the RFC 8785 subset that these documents
-//! use: ASCII strings, integers, plain floats).
+//! `work_unit_id = sha256(RFC 8785 canonical JSON of the work unit)`.
+//!
+//! The per-seed results are replicates of one parameter point. The
+//! [`Replicates`] summary (median, mean, min, max of the distance) is what
+//! scientific acceptance rules operate on; the `specimen_*` fields point at
+//! one seed for visualisation and must never decide acceptance.
 #![forbid(unsafe_code)]
+
+mod jcs;
+pub mod partition;
 
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
-
 use sha2::{Digest, Sha256};
 use vah_corpus::Corpus;
 use vah_generators::{Layout, Params, Resources, Rng};
 use vah_stats::{Fingerprint, Target};
 
+pub use jcs::{canonicalize, es6_number, JcsError};
 pub use vah_corpus;
 pub use vah_generators;
 pub use vah_stats;
 
 /// Version of the science kernel, recorded in every result.
 pub const KERNEL_VERSION: &str = env!("CARGO_PKG_VERSION");
-pub const WORK_UNIT_SCHEMA: &str = "vah-work-unit-0.1";
-pub const RESULT_SCHEMA: &str = "vah-result-0.1";
+pub const WORK_UNIT_SCHEMA: &str = "vah-work-unit-0.2";
+pub const RESULT_SCHEMA: &str = "vah-result-0.2";
+/// The numeric profile every worker must implement: IEEE-754 binary64,
+/// hardware `+ - * / sqrt`, `libm` transcendentals, no FMA, no SIMD, no
+/// threads, ordered maps, canonical little-endian output, no NaN, no
+/// negative zero in outputs.
+pub const NUMERIC_PROFILE: &str = "wasm32-ieee754-libm-scalar-v1";
 
-/// Hard cap on seeds per work unit (keeps results small and bounded).
+/// Hard caps that keep results small and bounded.
 pub const MAX_SEEDS_PER_UNIT: u32 = 256;
+pub const MAX_LAYOUT_LINES: usize = 200_000;
+pub const MAX_LAYOUT_TOKENS: usize = 2_000_000;
 
 // ---------------------------------------------------------------------------
 // Canonical JSON and digests
 
-/// Compact JSON with keys sorted at every level.
+/// RFC 8785 canonical JSON of a serialisable value.
 pub fn canonical_json<T: Serialize>(v: &T) -> Result<String, CoreError> {
     let value = serde_json::to_value(v)?;
-    // serde_json::Value maps are BTreeMaps (sorted keys) without the
-    // `preserve_order` feature, which this workspace does not enable.
-    Ok(serde_json::to_string(&value)?)
+    Ok(jcs::canonicalize(&value)?)
 }
 
 /// `sha256:<hex>` of bytes.
@@ -68,7 +80,7 @@ pub struct WorkUnit {
     pub experiment_id: String,
     /// Generator family.
     pub family: String,
-    /// Generator parameters.
+    /// Generator parameters (numbers, decimal strings, strings, booleans).
     pub params: Params,
     /// Statistics vector definition, e.g. `fingerprint-v1`.
     pub fingerprint_version: String,
@@ -80,7 +92,7 @@ pub struct WorkUnit {
     pub resources_digest: Option<String>,
     /// First seed index.
     pub seed_start: u64,
-    /// Number of seeds.
+    /// Number of seeds (replicates of this parameter point in this unit).
     pub seed_count: u32,
 }
 
@@ -132,6 +144,16 @@ pub struct SeedResult {
     pub distance: f64,
 }
 
+/// Distributional summary over the replicates of this unit.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Replicates {
+    pub n: u32,
+    pub distance_median: f64,
+    pub distance_mean: f64,
+    pub distance_min: f64,
+    pub distance_max: f64,
+}
+
 /// The output of a work unit.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct WorkResult {
@@ -140,10 +162,13 @@ pub struct WorkResult {
     pub stream_id: String,
     pub kernel_version: String,
     pub fingerprint_version: String,
+    pub numeric_profile: String,
     pub seeds: Vec<SeedResult>,
-    /// Seed with the smallest distance (ties: smallest seed).
-    pub best_seed: u64,
-    pub best_distance: f64,
+    pub replicates: Replicates,
+    /// Seed with the smallest distance (ties: smallest seed). For
+    /// visualisation only; never an input to scientific acceptance.
+    pub specimen_seed: u64,
+    pub specimen_distance: f64,
     /// SHA-256 over canonical bytes of all seed results.
     pub result_hash: String,
 }
@@ -168,7 +193,9 @@ impl WorkResult {
 #[derive(Debug)]
 pub enum CoreError {
     Json(serde_json::Error),
+    Jcs(JcsError),
     Schema(String),
+    Invalid(String),
     DigestMismatch {
         what: &'static str,
         expected: String,
@@ -176,13 +203,19 @@ pub enum CoreError {
     },
     Generator(vah_generators::GenError),
     Target(vah_stats::TargetError),
+    NonFinite {
+        seed: u64,
+        what: String,
+    },
 }
 
 impl fmt::Display for CoreError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             CoreError::Json(e) => write!(f, "json: {e}"),
+            CoreError::Jcs(e) => write!(f, "canonical json: {e}"),
             CoreError::Schema(s) => write!(f, "schema: {s}"),
+            CoreError::Invalid(s) => write!(f, "invalid job: {s}"),
             CoreError::DigestMismatch {
                 what,
                 expected,
@@ -192,6 +225,7 @@ impl fmt::Display for CoreError {
             }
             CoreError::Generator(e) => write!(f, "generator: {e}"),
             CoreError::Target(e) => write!(f, "target: {e}"),
+            CoreError::NonFinite { seed, what } => write!(f, "seed {seed}: non-finite {what}"),
         }
     }
 }
@@ -201,6 +235,11 @@ impl std::error::Error for CoreError {}
 impl From<serde_json::Error> for CoreError {
     fn from(e: serde_json::Error) -> Self {
         CoreError::Json(e)
+    }
+}
+impl From<JcsError> for CoreError {
+    fn from(e: JcsError) -> Self {
+        CoreError::Jcs(e)
     }
 }
 impl From<vah_generators::GenError> for CoreError {
@@ -216,6 +255,13 @@ impl From<vah_stats::TargetError> for CoreError {
 
 // ---------------------------------------------------------------------------
 // Execution
+
+fn valid_param_key(k: &str) -> bool {
+    let mut chars = k.chars();
+    matches!(chars.next(), Some(c) if c.is_ascii_lowercase())
+        && k.len() <= 64
+        && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+}
 
 /// Check a job's internal consistency without running it.
 pub fn validate_job(job: &Job) -> Result<(), CoreError> {
@@ -233,15 +279,62 @@ pub fn validate_job(job: &Job) -> Result<(), CoreError> {
             wu.fingerprint_version
         )));
     }
+    if !vah_generators::FAMILIES.contains(&wu.family.as_str()) {
+        return Err(CoreError::Generator(
+            vah_generators::GenError::UnknownFamily(wu.family.clone()),
+        ));
+    }
+    for (k, v) in &wu.params {
+        if !valid_param_key(k) {
+            return Err(CoreError::Invalid(format!(
+                "parameter key {k:?} is not [a-z][a-z0-9_]{{0,63}}"
+            )));
+        }
+        if v.is_object() || v.is_array() {
+            return Err(CoreError::Invalid(format!(
+                "parameter {k} must be a scalar"
+            )));
+        }
+        if let Some(n) = v.as_f64() {
+            if !n.is_finite() {
+                return Err(CoreError::Invalid(format!("parameter {k} is not finite")));
+            }
+        }
+    }
     if wu.seed_count == 0 || wu.seed_count > MAX_SEEDS_PER_UNIT {
-        return Err(CoreError::Schema(format!(
+        return Err(CoreError::Invalid(format!(
             "seed_count must be in 1..={MAX_SEEDS_PER_UNIT}"
         )));
     }
+    if wu
+        .seed_start
+        .checked_add(u64::from(wu.seed_count))
+        .is_none()
+    {
+        return Err(CoreError::Invalid("seed range overflows u64".into()));
+    }
     if job.layout.lines.is_empty() {
-        return Err(CoreError::Schema("layout has no lines".into()));
+        return Err(CoreError::Invalid("layout has no lines".into()));
+    }
+    if job.layout.lines.len() > MAX_LAYOUT_LINES {
+        return Err(CoreError::Invalid(format!(
+            "layout has more than {MAX_LAYOUT_LINES} lines"
+        )));
+    }
+    if job.layout.lines.iter().any(|l| l.words == 0) {
+        return Err(CoreError::Invalid("layout line with zero words".into()));
+    }
+    if job.layout.tokens() > MAX_LAYOUT_TOKENS {
+        return Err(CoreError::Invalid(format!(
+            "layout has more than {MAX_LAYOUT_TOKENS} words"
+        )));
     }
     job.target.validate()?;
+    if job.target.version != wu.fingerprint_version {
+        return Err(CoreError::Schema(
+            "target version differs from the work unit's fingerprint version".into(),
+        ));
+    }
     let check = |what: &'static str, expected: &str, actual: String| {
         if expected != actual {
             Err(CoreError::DigestMismatch {
@@ -273,7 +366,7 @@ pub fn validate_job(job: &Job) -> Result<(), CoreError> {
 }
 
 /// Generate the corpus for one seed of a job (used by the executor and by
-/// dashboards that regenerate a best-fit specimen).
+/// dashboards that regenerate a specimen).
 pub fn generate_seed(job: &Job, seed: u64) -> Result<Corpus, CoreError> {
     let res = job.resources.clone().unwrap_or_default();
     let gen = vah_generators::build(&job.work_unit.family, &job.work_unit.params, &res)?;
@@ -290,18 +383,26 @@ pub fn run_job<F: FnMut(u32, u32)>(job: &Job, mut progress: F) -> Result<WorkRes
     let gen = vah_generators::build(&wu.family, &wu.params, &res)?;
     let stream_id = wu.stream_id()?;
     let mut seeds = Vec::with_capacity(wu.seed_count as usize);
-    let mut best_seed = wu.seed_start;
-    let mut best_distance = f64::INFINITY;
+    let mut specimen_seed = wu.seed_start;
+    let mut specimen_distance = f64::INFINITY;
+    let mut distances = Vec::with_capacity(wu.seed_count as usize);
     for i in 0..wu.seed_count {
-        let seed = wu.seed_start + i as u64;
+        let seed = wu.seed_start + u64::from(i);
         let mut rng = Rng::new(&stream_id, seed);
         let corpus = gen.generate(&mut rng, &job.layout);
         let fp: Fingerprint = vah_stats::fingerprint(&corpus);
-        let d = vah_stats::distance(&fp, &job.target)?;
-        if d < best_distance {
-            best_distance = d;
-            best_seed = seed;
+        if let Some(i) = fp.values.iter().position(|v| !v.is_finite()) {
+            return Err(CoreError::NonFinite {
+                seed,
+                what: vah_stats::STAT_NAMES[i].to_string(),
+            });
         }
+        let d = vah_stats::distance(&fp, &job.target)?;
+        if d < specimen_distance {
+            specimen_distance = d;
+            specimen_seed = seed;
+        }
+        distances.push(d);
         seeds.push(SeedResult {
             seed,
             fingerprint: fp.values,
@@ -309,6 +410,14 @@ pub fn run_job<F: FnMut(u32, u32)>(job: &Job, mut progress: F) -> Result<WorkRes
         });
         progress(i + 1, wu.seed_count);
     }
+    let n = distances.len() as f64;
+    let replicates = Replicates {
+        n: wu.seed_count,
+        distance_median: vah_stats::median(&distances),
+        distance_mean: distances.iter().sum::<f64>() / n,
+        distance_min: distances.iter().copied().fold(f64::INFINITY, f64::min),
+        distance_max: distances.iter().copied().fold(f64::NEG_INFINITY, f64::max),
+    };
     let result_hash = digest(&WorkResult::canonical_bytes(&seeds));
     Ok(WorkResult {
         schema_version: RESULT_SCHEMA.to_string(),
@@ -316,9 +425,11 @@ pub fn run_job<F: FnMut(u32, u32)>(job: &Job, mut progress: F) -> Result<WorkRes
         stream_id,
         kernel_version: KERNEL_VERSION.to_string(),
         fingerprint_version: vah_stats::VERSION.to_string(),
+        numeric_profile: NUMERIC_PROFILE.to_string(),
         seeds,
-        best_seed,
-        best_distance,
+        replicates,
+        specimen_seed,
+        specimen_distance,
         result_hash,
     })
 }
@@ -335,9 +446,9 @@ pub fn result_to_json(r: &WorkResult) -> Result<String, CoreError> {
 
 /// JSON in, JSON out (the interface used by the wasm module and the CLI).
 pub fn run_job_json(job_json: &str) -> Result<String, CoreError> {
-    let job: Job = serde_json::from_str(job_json)?;
+    let job = parse_job(job_json)?;
     let result = run_job(&job, |_, _| {})?;
-    Ok(serde_json::to_string(&result)?)
+    result_to_json(&result)
 }
 
 /// Build a work unit for a job, filling in the artifact digests.
@@ -377,6 +488,12 @@ pub fn make_work_unit(
 pub struct TargetProvenance {
     pub source_digest: String,
     pub view_id: String,
+    /// Digest of the partition manifest the corpus was filtered with, if any.
+    #[serde(default)]
+    pub partition_digest: Option<String>,
+    /// Partition roles included in the corpus (empty = whole corpus).
+    #[serde(default)]
+    pub roles: Vec<String>,
     pub resamples: u32,
     pub bootstrap_seed: u64,
     pub kernel_version: String,
@@ -522,15 +639,21 @@ mod tests {
     }
 
     #[test]
-    fn canonical_json_sorts_keys() {
+    fn canonical_json_is_rfc8785() {
         #[derive(Serialize)]
         struct S {
-            b: u32,
+            b: f64,
             a: u32,
+            z: Option<u32>,
         }
         assert_eq!(
-            canonical_json(&S { b: 2, a: 1 }).unwrap(),
-            r#"{"a":1,"b":2}"#
+            canonical_json(&S {
+                b: 2.0,
+                a: 1,
+                z: None
+            })
+            .unwrap(),
+            r#"{"a":1,"b":2,"z":null}"#
         );
         assert_eq!(
             digest(b"abc"),
@@ -565,17 +688,15 @@ mod tests {
             assert_eq!(calls, 4);
             assert_eq!(r1, r2, "{fam}");
             assert_eq!(r1.seeds.len(), 4);
+            assert_eq!(r1.numeric_profile, NUMERIC_PROFILE);
             assert!(r1
                 .seeds
                 .iter()
                 .all(|s| s.fingerprint.len() == 30 && s.distance.is_finite()));
-            assert_eq!(
-                r1.best_distance,
-                r1.seeds
-                    .iter()
-                    .map(|s| s.distance)
-                    .fold(f64::INFINITY, f64::min)
-            );
+            assert_eq!(r1.specimen_distance, r1.replicates.distance_min);
+            assert!(r1.replicates.distance_min <= r1.replicates.distance_median);
+            assert!(r1.replicates.distance_median <= r1.replicates.distance_max);
+            assert_eq!(r1.replicates.n, 4);
             assert!(r1.result_hash.starts_with("sha256:"));
             let json = serde_json::to_string(&j).unwrap();
             let via_json: WorkResult = serde_json::from_str(&run_job_json(&json).unwrap()).unwrap();
@@ -599,7 +720,7 @@ mod tests {
     }
 
     #[test]
-    fn tampered_artifacts_are_rejected() {
+    fn tampered_or_malformed_jobs_are_rejected() {
         let mut j = job("charmarkov", "{}", 1);
         j.layout.lines[0].words += 1;
         assert!(matches!(
@@ -620,7 +741,35 @@ mod tests {
         assert!(matches!(run_job(&j, |_, _| {}), Err(CoreError::Schema(_))));
         let mut j = job("gibberish", "{}", 1);
         j.work_unit.seed_count = 0;
-        assert!(matches!(run_job(&j, |_, _| {}), Err(CoreError::Schema(_))));
+        assert!(matches!(run_job(&j, |_, _| {}), Err(CoreError::Invalid(_))));
+        let mut j = job("gibberish", "{}", 2);
+        j.work_unit.seed_start = u64::MAX;
+        assert!(matches!(run_job(&j, |_, _| {}), Err(CoreError::Invalid(_))));
+        let mut j = job("gibberish", "{}", 1);
+        j.work_unit.family = "nope".into();
+        assert!(matches!(
+            run_job(&j, |_, _| {}),
+            Err(CoreError::Generator(_))
+        ));
+        let mut j = job("gibberish", "{}", 1);
+        j.work_unit
+            .params
+            .insert("Bad-Key".into(), serde_json::json!(1));
+        assert!(matches!(run_job(&j, |_, _| {}), Err(CoreError::Invalid(_))));
+        let mut j = job("gibberish", "{}", 1);
+        j.work_unit
+            .params
+            .insert("nested".into(), serde_json::json!({"a": 1}));
+        assert!(matches!(run_job(&j, |_, _| {}), Err(CoreError::Invalid(_))));
+        // a zero-word line or a bad target is rejected before the digest check
+        let mut j = job("gibberish", "{}", 1);
+        j.layout.lines[0].words = 0;
+        j.work_unit.layout_digest = digest_json(&j.layout).unwrap();
+        assert!(matches!(run_job(&j, |_, _| {}), Err(CoreError::Invalid(_))));
+        let mut j = job("gibberish", "{}", 1);
+        j.target.scale[0] = 0.0;
+        j.work_unit.target_digest = digest_json(&j.target).unwrap();
+        assert!(matches!(run_job(&j, |_, _| {}), Err(CoreError::Target(_))));
     }
 
     #[test]

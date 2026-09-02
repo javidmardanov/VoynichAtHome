@@ -71,4 +71,4 @@ The blunt truth first: **finding the plaintext is insight-bound, not compute-bou
 
 **3. Decipherment susceptibility grid (workload b) — third, once credibility exists.** The most compute-hungry and most headline-friendly, but highest reputational risk; requires the null-control framing and mature infrastructure to avoid becoming the next "AI deciphered the Voynich" debacle.
 
-**Practical flags:** confirm redistribution terms for ZL3b with Zandbergen (no formal license); use IVTFF page variables ($L, $H) to fit per-language/per-scribe from day one; every generated corpus should be scored against Currier A and B separately since the 2026 mixture-model paper shows a single global fingerprint is already known to be too coarse.
+**Practical flags:** confirm attribution wording for ZL3b with Zandbergen (the voynich.nu legal page declares its collected transliterations CC0; archive a dated copy); use IVTFF page variables ($L, $H) to fit per-language/per-scribe from day one; every generated corpus should be scored against Currier A and B separately since the 2026 mixture-model paper shows a single global fingerprint is already known to be too coarse.

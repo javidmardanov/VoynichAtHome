@@ -1,5 +1,7 @@
 # Voynich@Home — Plan
 
+> **Status note (draft 2 of the merged design).** This is the original plan of this proposal. Where it differs from [SYNTHESIS.md](SYNTHESIS.md), the synthesis governs. In particular: the Bayesian/ABC framing of the first workload is withdrawn for version 1 in favour of registered compatibility screening with fixed replicates; scientific claims are bounded to "compatible with the registered summaries", never "how the manuscript was made"; confirmation uses held-out whole quires; and the BOINC assessment is "listing uncertain", not "denied".
+
 ## Context
 
 The question posed: the Voynich manuscript exists, Folding@home exists — can someone build **Voynich@Home**? This repo is empty; everything is a greenfield build. The chosen first milestone is a **full public platform** (a website where visitors contribute compute, with live science dashboards), with the scientific workload and distribution mechanism selected through research and justified explicitly rather than assumed.
@@ -20,7 +22,7 @@ Simulate candidate generation mechanisms (self-citation, table+grille, Naibbe ci
 
 ### 2. Distribution: **browser-first WASM** ("open a tab, crunch Voynich")
 Rust → WASM kernel in a dedicated Web Worker; explicit opt-in consent card, CPU slider, pause, live meter (post-Coinhive consent norms); COOP/COEP headers for threads; optional headless Node runner later reusing the same WASM.
-- **Justified because:** (a) **reach/friction** — every phone/laptop that can open a link is a contributor; BOINC's funnel is an installer plus a project listing that Berkeley now *denies* to new small projects (ODLK2025 was told to piggyback on existing projects instead); (b) **time-to-launch** — weeks of LAMP + tri-platform native app signing for BOINC vs a static site + serverless API; (c) **determinism** — WASM floats are bit-identical across platforms (avoid relaxed SIMD), so validation is hash comparison, *better* than native BOINC which needs "homogeneous redundancy"; (d) WASM runs at ~50–80% native — fine, since the workload is compute-light per unit and scale comes from participation.
+- **Justified because:** (a) **reach/friction** — every phone/laptop that can open a link is a contributor; BOINC's funnel is an installer plus a project listing that is uncertain for new small projects (BOINC's own guidance says projects are vetted and that attracting volunteers is a major obstacle; in the one documented recent case, ODLK2025, listing was refused and the project was advised to piggyback on an existing one); (b) **time-to-launch** — weeks of LAMP + tri-platform native app signing for BOINC vs a static site + serverless API; (c) **determinism** — WASM floats are bit-identical across platforms (avoid relaxed SIMD), so validation is hash comparison, *better* than native BOINC which needs "homogeneous redundancy"; (d) WASM runs at ~50–80% native — fine, since the workload is compute-light per unit and scale comes from participation.
 
 ### 3. Coordinator: **Cloudflare free tier + GitHub**
 Pages (static site) + Worker (~3 endpoints: lease, submit, stats) + D1 (SQLite) + R2 (blobs); nightly GitHub Action does stats rollup + ABC posterior aggregation committed to the repo.
@@ -30,7 +32,7 @@ Pages (static site) + Worker (~3 endpoints: lease, submit, stats) + D1 (SQLite) 
 2-way replication with hash comparison → escalate to 3rd on mismatch; 5–10% indistinguishable canary units with known answers; per-client reputation lowers replication to ~10% for proven clients (BOINC adaptive-replication style); HMAC-signed leases with deadlines; points only for validated work (Sarmenta 2002 + BOINC practice).
 
 ### 5. Data & licensing
-Reference transliteration: Zandbergen–Landini **ZL3b** (IVTFF format, voynich.nu) — page metadata includes Currier language A/B and scribe hands, so fingerprints are computed per-section from day one. **No formal license** on voynich.nu files → do **not** redistribute raw transliteration to clients; compute the fingerprint offline at build time and ship only the derived target-statistics vector. Email René Zandbergen for redistribution permission before public launch (flagged as user action).
+Reference transliteration: Zandbergen–Landini **ZL3b** (IVTFF format, voynich.nu) — page metadata includes Currier language A/B and scribe hands, so fingerprints are computed per-section from day one. The voynich.nu legal page declares its collected transliterations CC0 (verified by the reviewing party on 2026-09-01; a dated copy of the statement must be archived with attribution). The design still does **not** redistribute the raw transliteration to clients, which keeps the redistribution surface small; compute the fingerprint offline at build time and ship only the derived target-statistics vector. Email René Zandbergen about attribution wording before public launch (flagged as owner action).
 
 ## Implementation
 

@@ -2,6 +2,8 @@
 
 *Web-research report compiled 2026-08-30 for the Voynich@Home proposal. Every load-bearing claim carries its source URL.*
 
+> **Correction (draft 2 of the merged design).** The conclusion drawn from the ODLK2025 case in this review was too strong. BOINC's official project guidance says projects are vetted and that attracting volunteers is a major obstacle; ODLK2025 is one documented refusal that cited maturity and perceived overlap. The supported statement is "listing is uncertain for a new small project", not "BOINC denies listings to new small projects", and no measured figure supports "installer friction cuts reach by an order of magnitude".
+
 ## 1. BOINC today: what running a project actually costs
 
 **Server stack and requirements.** The official [Create a BOINC server (cookbook)](https://github.com/BOINC/boinc/wiki/Create-a-BOINC-server-(cookbook)) targets Ubuntu 22.04 with MySQL/MariaDB, Apache 2 + PHP, and a from-source server build; minimum VM spec 4 GB RAM / 1 CPU / 25 GB disk for dev. [ServerIntro](https://github.com/BOINC/boinc/wiki/ServerIntro) recommends production hardware of 64-bit CPU, at least 8 GB RAM, 40 GB free disk, a static IP, and ideally UPS/RAID. You operate a fleet of daemons (scheduler, feeder, transitioner, validator, assimilator, file upload handler, file deleter), cron maintenance every 5 minutes, MySQL backups (traditionally with project downtime), and permissions gymnastics between `www-data` and `boincadm`. Realistic translation for a solo dev: a $10–20/mo VPS minimum, a weekend to get "hello world" running if everything goes right, and then a long tail of Linux/MySQL/PHP sysadmin forever.

@@ -30,18 +30,9 @@ fn target_digest_survives_json_round_trip() {
     let json = serde_json::to_string(&t).unwrap();
     let back: vah_stats::Target = serde_json::from_str(&json).unwrap();
     let after = canonical_json(&back).unwrap();
-    if before != after {
-        let pos = before
-            .bytes()
-            .zip(after.bytes())
-            .position(|(a, b)| a != b)
-            .unwrap_or(before.len().min(after.len()));
-        let lo = pos.saturating_sub(60);
-        panic!(
-            "canonical JSON changed at byte {pos}:\n before: {}\n after:  {}",
-            &before[lo..(pos + 40).min(before.len())],
-            &after[lo..(pos + 40).min(after.len())]
-        );
-    }
+    assert_eq!(before, after);
     assert_eq!(digest_json(&t).unwrap(), digest_json(&back).unwrap());
+    // and the canonical text itself parses back to the same value
+    let back2: vah_stats::Target = serde_json::from_str(&before).unwrap();
+    assert_eq!(back2, t);
 }

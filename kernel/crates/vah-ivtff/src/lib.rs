@@ -1,9 +1,11 @@
 //! Parser for the Intermediate Voynich Transliteration File Format (IVTFF),
 //! format version 2.0, as published by René Zandbergen at voynich.nu.
 //!
-//! The parser is lossless: every construct in a locus is kept as an [`Item`]
-//! so that a corpus view can decide what to do with alternatives, ligatures,
-//! rare glyphs and uncertain spaces. [`build_corpus`] applies a
+//! The parser is structure-preserving for recognised IVTFF constructs: every
+//! construct in a locus is kept as an [`Item`], and [`render`] reproduces the
+//! locus text exactly (a round-trip test checks this on the real file). It
+//! does not retain file-level comment lines, blank lines or non-locus text,
+//! so it is not lossless at file level. [`build_corpus`] applies a
 //! [`ViewPolicy`] to turn a parsed [`Document`] into a [`Corpus`].
 //!
 //! This code was written from the format description only. It does not copy
@@ -74,6 +76,9 @@ pub struct Locus {
     pub number: String,
     pub kind: LocusType,
     pub items: Vec<Item>,
+    /// The locus text exactly as written (after the locus identifier,
+    /// surrounding whitespace trimmed).
+    pub text: String,
     /// Source line number (1-based) for diagnostics.
     pub line_no: usize,
 }
@@ -112,9 +117,63 @@ pub enum Item {
     /// Any other `<...>` tag, content verbatim.
     Tag(String),
     /// `!` or `%` filler characters outside tags.
-    Filler,
-    /// Any other ASCII character.
+    Filler(char),
+    /// Any other character, including whitespace inside the text.
     Other(char),
+}
+
+/// Reproduce the locus text of a parsed item sequence.
+pub fn render(items: &[Item]) -> String {
+    let mut out = String::new();
+    render_into(items, &mut out);
+    out
+}
+
+fn render_into(items: &[Item], out: &mut String) {
+    for it in items {
+        match it {
+            Item::Glyph(c) | Item::Other(c) | Item::Filler(c) => out.push(*c),
+            Item::Rare(s) => out.push_str(s),
+            Item::Unreadable => out.push('?'),
+            Item::Mark => out.push('\''),
+            Item::Space => out.push('.'),
+            Item::UncertainSpace => out.push(','),
+            Item::DrawingGap => out.push_str("<->"),
+            Item::DrawingGapNoBreak => out.push_str("<~>"),
+            Item::ParaStart => out.push_str("<%>"),
+            Item::ParaEnd => out.push_str("<$>"),
+            Item::Alternatives(branches) => {
+                out.push('[');
+                for (i, b) in branches.iter().enumerate() {
+                    if i > 0 {
+                        out.push(':');
+                    }
+                    render_into(b, out);
+                }
+                out.push(']');
+            }
+            Item::Ligature(inner) => {
+                out.push('{');
+                render_into(inner, out);
+                out.push('}');
+            }
+            Item::Comment(s) => {
+                out.push_str("<!");
+                out.push_str(s);
+                out.push('>');
+            }
+            Item::HandChange(c) => {
+                out.push_str("<@H=");
+                out.push(*c);
+                out.push('>');
+            }
+            Item::Tag(s) => {
+                out.push('<');
+                out.push_str(s);
+                out.push('>');
+            }
+        }
+    }
 }
 
 /// Parse failure with the source line number.
@@ -180,11 +239,13 @@ pub fn parse(src: &str) -> Result<Document, ParseError> {
                     line: line_no,
                     text: line.to_string(),
                 })?;
-            let items = parse_items(rest.trim(), line_no)?;
+            let text = rest.trim();
+            let items = parse_items(text, line_no)?;
             let locus = Locus {
                 number,
                 kind,
                 items,
+                text: text.to_string(),
                 line_no,
             };
             match pages.last_mut() {
@@ -356,9 +417,8 @@ fn parse_seq(
             ',' => items.push(Item::UncertainSpace),
             '?' => items.push(Item::Unreadable),
             '\'' => items.push(Item::Mark),
-            '!' | '%' => items.push(Item::Filler),
+            '!' | '%' => items.push(Item::Filler(c)),
             c if c.is_ascii_alphanumeric() => items.push(Item::Glyph(c)),
-            c if c.is_whitespace() => {}
             c if !c.is_ascii() => items.push(Item::Rare(c.to_string())),
             c => items.push(Item::Other(c)),
         }
@@ -500,7 +560,7 @@ impl WordBuilder {
                 | Item::Comment(_)
                 | Item::HandChange(_)
                 | Item::Tag(_)
-                | Item::Filler
+                | Item::Filler(_)
                 | Item::Other(_) => {}
             }
         }
@@ -630,6 +690,24 @@ mod tests {
         assert!(c.lines[2].para_end);
         assert_eq!(c.lines[3].page, 1);
         assert_eq!(c.lines[3].words, vec!["qokeedy"]);
+    }
+
+    #[test]
+    fn render_round_trips_every_locus() {
+        let doc = parse(FIXTURE).unwrap();
+        for page in &doc.pages {
+            for locus in &page.loci {
+                assert_eq!(
+                    render(&locus.items),
+                    locus.text,
+                    "locus {}.{}",
+                    page.name,
+                    locus.number
+                );
+            }
+        }
+        let odd = "a b!c%d@x.<unknown tag>e<!c>[{ab}:c]<@H=3>";
+        assert_eq!(render(&parse_items(odd, 1).unwrap()), odd);
     }
 
     #[test]

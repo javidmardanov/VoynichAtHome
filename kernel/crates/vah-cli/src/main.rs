@@ -1,23 +1,27 @@
 //! `voynich` — native front end of the science kernel.
 //!
 //! Pipeline side (needs the transliteration files, never shipped to clients):
-//!   voynich fingerprint <ivtff>            print the fingerprint of a file
-//!   voynich build-targets <ivtff> --out D  write target, layout and resources
-//!   voynich compare <ivtff> --targets D    sanity checks against the target
+//!   voynich fingerprint <ivtff>              print the fingerprint of a file (optionally one partition role set)
+//!   voynich partition <ivtff> --out M        assign quires to discovery / validation / confirmation
+//!   voynich build-targets <ivtff> --out D    write target, layout and resources (optionally from partition roles)
+//!   voynich compare <ivtff> --targets D      sanity checks against the target
 //!
 //! Worker side (self-contained JSON in, JSON out):
-//!   voynich make-job ...                   assemble a job JSON
-//!   voynich run-wu <job.json>              execute a job
-//!   voynich show-seed <job.json> --seed N  print the generated text
-//!   voynich golden --dir D [--update]      known-answer checks
+//!   voynich make-job ...                     assemble a job JSON
+//!   voynich run-wu <job.json>                execute a job
+//!   voynich show-seed <job.json> --seed N    print the generated text
+//!   voynich golden --dir D [--update]        known-answer checks
 #![forbid(unsafe_code)]
 
 use std::collections::BTreeMap;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
+use vah_core::partition::{self, Manifest};
+use vah_core::vah_corpus::Corpus;
 use vah_core::vah_generators::{GlyphModel, Layout, Params, Resources, WordBag};
 use vah_core::vah_stats::{self, Target};
 use vah_core::{build_target, Job, TargetFile, TargetProvenance, WorkResult};
@@ -30,25 +34,53 @@ struct Cli {
     cmd: Cmd,
 }
 
+/// Options shared by the commands that read a transliteration file.
+#[derive(clap::Args, Clone)]
+struct CorpusOpts {
+    /// Corpus view: para-v1 (paragraph text) or all-v1 (all text).
+    #[arg(long, default_value = "para-v1")]
+    view: String,
+    /// Partition manifest (from `voynich partition`).
+    #[arg(long)]
+    partition: Option<PathBuf>,
+    /// Comma-separated roles to keep when a partition is given
+    /// (discovery, validation, confirmation).
+    #[arg(long, default_value = "discovery,validation")]
+    roles: String,
+}
+
 #[derive(Subcommand)]
 enum Cmd {
     /// Print the fingerprint of a transliteration file.
     Fingerprint {
         file: PathBuf,
-        /// Corpus view: para-v1 (paragraph text) or all-v1 (all text).
-        #[arg(long, default_value = "para-v1")]
-        view: String,
+        #[command(flatten)]
+        corpus: CorpusOpts,
         /// Restrict to one Currier language (A or B).
         #[arg(long)]
         currier: Option<char>,
+    },
+    /// Assign whole quires to discovery, validation and confirmation roles.
+    Partition {
+        file: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+        #[arg(long, default_value = "para-v1")]
+        view: String,
+        #[arg(long, default_value_t = 0.55)]
+        discovery: f64,
+        #[arg(long, default_value_t = 0.25)]
+        validation: f64,
+        #[arg(long, default_value_t = 0.20)]
+        confirmation: f64,
     },
     /// Build the target, layout and resources artifacts from a transliteration file.
     BuildTargets {
         file: PathBuf,
         #[arg(long)]
         out: PathBuf,
-        #[arg(long, default_value = "para-v1")]
-        view: String,
+        #[command(flatten)]
+        corpus: CorpusOpts,
         /// Bootstrap resamples for the per-statistic scale.
         #[arg(long, default_value_t = 200)]
         resamples: u32,
@@ -66,6 +98,8 @@ enum Cmd {
         file: PathBuf,
         #[arg(long)]
         targets: PathBuf,
+        #[command(flatten)]
+        corpus: CorpusOpts,
         #[arg(long, default_value_t = 3)]
         seeds: u32,
     },
@@ -131,11 +165,53 @@ fn policy(view: &str) -> Res<ViewPolicy> {
     }
 }
 
-fn load_corpus(file: &Path, view: &str) -> Res<(vah_core::vah_corpus::Corpus, String)> {
+/// A loaded corpus with the provenance fields that describe it.
+struct Loaded {
+    corpus: Corpus,
+    source_digest: String,
+    view_id: String,
+    partition_digest: Option<String>,
+    roles: Vec<String>,
+}
+
+fn load(file: &Path, opts: &CorpusOpts) -> Res<Loaded> {
     let src = fs::read_to_string(file)?;
     let doc = vah_ivtff::parse(&src)?;
-    let corpus = vah_ivtff::build_corpus(&doc, &policy(view)?);
-    Ok((corpus, vah_core::digest(src.as_bytes())))
+    let mut corpus = vah_ivtff::build_corpus(&doc, &policy(&opts.view)?);
+    let source_digest = vah_core::digest(src.as_bytes());
+    let (partition_digest, roles) = match &opts.partition {
+        Some(p) => {
+            let manifest: Manifest = read_json(p)?;
+            if manifest.source_digest != source_digest || manifest.view_id != opts.view {
+                return Err(format!(
+                    "partition manifest was built from {} view {}, not this file/view",
+                    manifest.source_digest, manifest.view_id
+                )
+                .into());
+            }
+            let roles: Vec<String> = opts
+                .roles
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            for r in &roles {
+                if !partition::ROLES.contains(&r.as_str()) {
+                    return Err(format!("unknown role {r}").into());
+                }
+            }
+            corpus = partition::filter(&corpus, &manifest, &roles);
+            (Some(vah_core::digest_json(&manifest)?), roles)
+        }
+        None => (None, Vec::new()),
+    };
+    Ok(Loaded {
+        corpus,
+        source_digest,
+        view_id: opts.view.clone(),
+        partition_digest,
+        roles,
+    })
 }
 
 fn read_json<T: for<'de> Deserialize<'de>>(p: &Path) -> Res<T> {
@@ -165,25 +241,29 @@ struct Expected {
 #[derive(Serialize, Deserialize, PartialEq)]
 struct ExpectedEntry {
     result_hash: String,
-    best_seed: u64,
-    best_distance: f64,
+    distance_median: f64,
+    specimen_seed: u64,
+    specimen_distance: f64,
 }
 
 fn run(cli: Cli) -> Res<()> {
     match cli.cmd {
         Cmd::Fingerprint {
             file,
-            view,
+            corpus: opts,
             currier,
         } => {
-            let (mut corpus, digest) = load_corpus(&file, &view)?;
+            let l = load(&file, &opts)?;
+            let mut corpus = l.corpus;
             if let Some(c) = currier {
                 corpus = corpus.currier(c);
             }
             let fp = vah_stats::fingerprint(&corpus);
             let out = serde_json::json!({
-                "source_digest": digest,
-                "view_id": view,
+                "source_digest": l.source_digest,
+                "view_id": l.view_id,
+                "partition_digest": l.partition_digest,
+                "roles": l.roles,
                 "currier": currier,
                 "words": corpus.word_count(),
                 "lines": corpus.lines.len(),
@@ -192,23 +272,80 @@ fn run(cli: Cli) -> Res<()> {
             });
             println!("{}", serde_json::to_string_pretty(&out)?);
         }
-        Cmd::BuildTargets {
+        Cmd::Partition {
             file,
             out,
             view,
+            discovery,
+            validation,
+            confirmation,
+        } => {
+            let opts = CorpusOpts {
+                view: view.clone(),
+                partition: None,
+                roles: String::new(),
+            };
+            let l = load(&file, &opts)?;
+            let fractions = [
+                ("discovery", discovery),
+                ("validation", validation),
+                ("confirmation", confirmation),
+            ];
+            if fractions.iter().any(|(_, f)| !(0.0..=1.0).contains(f))
+                || (discovery + validation + confirmation - 1.0).abs() > 1e-9
+            {
+                return Err("fractions must be in [0, 1] and sum to 1".into());
+            }
+            let manifest = partition::assign(&l.corpus, &l.source_digest, &view, &fractions);
+            write_json(&out, &manifest)?;
+            eprintln!("{:<6} {:>6} {:>6} {:>6}  role", "quire", "words", "A", "B");
+            for q in &manifest.quires {
+                eprintln!(
+                    "{:<6} {:>6} {:>6} {:>6}  {}",
+                    q.quire, q.words, q.words_currier_a, q.words_currier_b, q.role
+                );
+            }
+            for (role, t) in &manifest.roles {
+                eprintln!(
+                    "{role}: {} words (A {}, B {}) in quires {}",
+                    t.words,
+                    t.words_currier_a,
+                    t.words_currier_b,
+                    t.quires.join(",")
+                );
+            }
+            if !manifest.unassigned_pages.is_empty() {
+                eprintln!(
+                    "unassigned pages (no quire): {}",
+                    manifest.unassigned_pages.join(",")
+                );
+            }
+            eprintln!(
+                "wrote {} ({})",
+                out.display(),
+                vah_core::digest_json(&manifest)?
+            );
+        }
+        Cmd::BuildTargets {
+            file,
+            out,
+            corpus: opts,
             resamples,
             seed,
             markov_order,
             bag_limit,
         } => {
-            let (corpus, source_digest) = load_corpus(&file, &view)?;
+            let l = load(&file, &opts)?;
+            let corpus = &l.corpus;
             fs::create_dir_all(&out)?;
-            let target = build_target(&corpus, resamples, seed);
+            let target = build_target(corpus, resamples, seed);
             let tf = TargetFile {
                 target,
                 provenance: TargetProvenance {
-                    source_digest,
-                    view_id: view.clone(),
+                    source_digest: l.source_digest.clone(),
+                    view_id: l.view_id.clone(),
+                    partition_digest: l.partition_digest.clone(),
+                    roles: l.roles.clone(),
                     resamples,
                     bootstrap_seed: seed,
                     kernel_version: vah_core::KERNEL_VERSION.to_string(),
@@ -217,49 +354,63 @@ fn run(cli: Cli) -> Res<()> {
                 },
             };
             write_json(&out.join("fingerprint_v1.json"), &tf)?;
-            let layout = Layout::from_corpus(&corpus);
+            let layout = Layout::from_corpus(corpus);
             write_json(&out.join("layout_v1.json"), &layout)?;
-            let mut bag = WordBag::from_corpus(&corpus);
+            let mut bag = WordBag::from_corpus(corpus);
             if bag_limit > 0 {
                 bag.words.truncate(bag_limit);
             }
             let resources = Resources {
-                glyph_model: Some(GlyphModel::train(&corpus, markov_order)),
+                glyph_model: Some(GlyphModel::train(corpus, markov_order)),
                 word_bag: Some(bag),
             };
             write_json(&out.join("resources_v1.json"), &resources)?;
             eprintln!(
-                "wrote {} (target {}), layout ({} lines, {} words), resources (order {}, {} words)",
+                "wrote {} from {} words in roles [{}]: target {}, layout ({} lines), resources (order {}, {} words)",
                 out.display(),
+                corpus.word_count(),
+                l.roles.join(","),
                 vah_core::digest_json(&tf.target)?,
                 layout.lines.len(),
-                layout.tokens(),
                 markov_order,
-                resources
-                    .word_bag
-                    .as_ref()
-                    .map(|b| b.words.len())
-                    .unwrap_or(0)
+                resources.word_bag.as_ref().map(|b| b.words.len()).unwrap_or(0)
             );
         }
         Cmd::Compare {
             file,
             targets,
+            corpus: opts,
             seeds,
         } => {
-            let (corpus, _) = load_corpus(&file, "para-v1")?;
+            let l = load(&file, &opts)?;
+            let corpus = &l.corpus;
             let target = read_target(&targets.join("fingerprint_v1.json"))?;
             let layout: Layout = read_json(&targets.join("layout_v1.json"))?;
             let resources: Resources = read_json(&targets.join("resources_v1.json"))?;
-            println!("{:<28} {:>10}", "corpus", "distance");
-            let d = |c: &vah_core::vah_corpus::Corpus| {
+            println!("{:<30} {:>9} {:>9}", "corpus", "median", "min");
+            let d = |c: &Corpus| {
                 vah_stats::distance(&vah_stats::fingerprint(c), &target)
-                    .map(|d| format!("{d:10.3}"))
+                    .map(|d| format!("{d:9.3}"))
                     .unwrap_or_else(|e| e.to_string())
             };
-            println!("{:<28} {}", "manuscript (para-v1)", d(&corpus));
-            println!("{:<28} {}", "manuscript Currier A", d(&corpus.currier('A')));
-            println!("{:<28} {}", "manuscript Currier B", d(&corpus.currier('B')));
+            let label = if l.roles.is_empty() {
+                "manuscript (whole)".to_string()
+            } else {
+                format!("manuscript [{}]", l.roles.join(","))
+            };
+            println!("{:<30} {:>9} {:>9}", label, d(corpus), "");
+            println!(
+                "{:<30} {:>9} {:>9}",
+                "  Currier A pages only",
+                d(&corpus.currier('A')),
+                ""
+            );
+            println!(
+                "{:<30} {:>9} {:>9}",
+                "  Currier B pages only",
+                d(&corpus.currier('B')),
+                ""
+            );
             for family in vah_core::vah_generators::FAMILIES {
                 let wu = vah_core::make_work_unit(
                     "sanity",
@@ -278,16 +429,12 @@ fn run(cli: Cli) -> Res<()> {
                     resources: Some(resources.clone()),
                 };
                 let r = vah_core::run_job(&job, |_, _| {})?;
-                let ds: Vec<String> = r
-                    .seeds
-                    .iter()
-                    .map(|s| format!("{:.3}", s.distance))
-                    .collect();
                 println!(
-                    "{:<28} {:>10}   seeds: {}",
+                    "{:<30} {:>9.3} {:>9.3}   n={}",
                     format!("{family} (defaults)"),
-                    format!("{:.3}", r.best_distance),
-                    ds.join(" ")
+                    r.replicates.distance_median,
+                    r.replicates.distance_min,
+                    r.replicates.n
                 );
             }
         }
@@ -344,7 +491,6 @@ fn run(cli: Cli) -> Res<()> {
             let job: Job = read_json(&job)?;
             let corpus = vah_core::generate_seed(&job, seed)?;
             // Ignore a closed pipe (e.g. `| head`) instead of panicking.
-            use std::io::Write;
             let _ = std::io::stdout()
                 .lock()
                 .write_all(corpus.to_text().as_bytes());
@@ -412,8 +558,9 @@ fn run_golden_dir(dir: &Path) -> Res<(BTreeMap<String, ExpectedEntry>, Expected)
             name,
             ExpectedEntry {
                 result_hash: r.result_hash,
-                best_seed: r.best_seed,
-                best_distance: r.best_distance,
+                distance_median: r.replicates.distance_median,
+                specimen_seed: r.specimen_seed,
+                specimen_distance: r.specimen_distance,
             },
         );
     }

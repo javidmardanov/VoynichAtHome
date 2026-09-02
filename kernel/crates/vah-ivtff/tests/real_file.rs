@@ -29,6 +29,24 @@ fn parses_zl3b_when_present() {
     assert_eq!(doc.pages.len(), 227, "ZL3b has 227 pages (incl. fRos)");
     assert_eq!(doc.locus_count(), 5385, "ZL3b has 5385 loci");
 
+    // Structure preservation: every locus renders back to its source text.
+    let mut internal_ws = 0usize;
+    for page in &doc.pages {
+        for locus in &page.loci {
+            assert_eq!(
+                vah_ivtff::render(&locus.items),
+                locus.text,
+                "{}.{}",
+                page.name,
+                locus.number
+            );
+            if locus.text.chars().any(char::is_whitespace) {
+                internal_ws += 1;
+            }
+        }
+    }
+    eprintln!("loci with internal whitespace: {internal_ws}");
+
     let para = vah_ivtff::build_corpus(&doc, &vah_ivtff::ViewPolicy::paragraph_text_v1());
     let all = vah_ivtff::build_corpus(&doc, &vah_ivtff::ViewPolicy::all_text_v1());
     eprintln!(
