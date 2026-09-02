@@ -11,6 +11,8 @@
 //! frozen once an experiment registers it; changes create `fingerprint-v2`.
 #![forbid(unsafe_code)]
 
+pub mod candidates;
+
 use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};

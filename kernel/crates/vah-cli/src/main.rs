@@ -63,6 +63,15 @@ enum Cmd {
         /// Restrict to one Currier language (A or B).
         #[arg(long)]
         currier: Option<char>,
+        /// Also print the fingerprint-v2 candidate statistics.
+        #[arg(long)]
+        candidates: bool,
+    },
+    /// Print the fingerprint-v2 candidate statistics of one generated seed of a job.
+    Candidates {
+        job: PathBuf,
+        #[arg(long, default_value_t = 0)]
+        seed: u64,
     },
     /// Assign whole quires to discovery, validation and confirmation roles.
     Partition {
@@ -344,6 +353,7 @@ fn run(cli: Cli) -> Res<()> {
             file,
             corpus: opts,
             currier,
+            candidates,
         } => {
             let l = load(&file, &opts)?;
             let mut corpus = l.corpus;
@@ -351,7 +361,19 @@ fn run(cli: Cli) -> Res<()> {
                 corpus = corpus.currier(c);
             }
             let fp = vah_stats::fingerprint(&corpus);
+            let cand = if candidates {
+                let table = vah_stats::candidates::SlotTable::parse(
+                    vah_stats::candidates::DEFAULT_SLOT_TABLE,
+                );
+                Some(vah_stats::candidates::candidate_stats(
+                    &corpus,
+                    table.as_ref(),
+                ))
+            } else {
+                None
+            };
             let out = serde_json::json!({
+                "candidates_v2": cand,
                 "source_digest": l.source_digest,
                 "view_id": l.view_id,
                 "partition_digest": l.partition_digest,
@@ -578,6 +600,17 @@ fn run(cli: Cli) -> Res<()> {
                 }
             })?;
             println!("{}", serde_json::to_string(&result)?);
+        }
+        Cmd::Candidates { job, seed } => {
+            let job: Job = read_json(&job)?;
+            let corpus = vah_core::generate_seed(&job, seed)?;
+            let table =
+                vah_stats::candidates::SlotTable::parse(vah_stats::candidates::DEFAULT_SLOT_TABLE);
+            let out = serde_json::json!({
+                "family": job.work_unit.family, "params": job.work_unit.params, "seed": seed, "words": corpus.word_count(),
+                "candidates_v2": vah_stats::candidates::candidate_stats(&corpus, table.as_ref()),
+            });
+            println!("{}", serde_json::to_string_pretty(&out)?);
         }
         Cmd::ShowSeed { job, seed } => {
             let job: Job = read_json(&job)?;

@@ -12,7 +12,7 @@ the same hash.
 |---|---|
 | `vah-corpus` | Corpus types: pages, lines, words, paragraph flags |
 | `vah-ivtff` | IVTFF 2.0 parser, structure-preserving for recognised constructs (every locus renders back to its source text; file-level comments are not retained), and corpus views. Written from the format description, not from IVTT |
-| `vah-stats` | `fingerprint-v1`: 30 statistics; weighted z-distance to a registered target; strict target validation |
+| `vah-stats` | `fingerprint-v1`: 30 statistics; weighted z-distance to a registered target; strict target validation; `candidates` module with fingerprint-v2 candidates (not in any hash) |
 | `vah-generators` | Deterministic generators: `gibberish`, `bagofwords`, `charmarkov` (controls), `selfcite` and `slotgram` (candidate mechanisms; the slot table is a parameter and the default is an approximation of Zattera's structure, to be verified by the domain advisor) |
 | `vah-core` | RFC 8785 canonical JSON, content digests, work-unit contract `vah-work-unit-0.2`, executor with input validation and output canonicalisation, replicate summaries, bootstrap target builder, quire partitions |
 | `vah-cli` | `voynich` binary: pipeline commands and a local worker |
