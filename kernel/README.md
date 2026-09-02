@@ -38,7 +38,8 @@ the executor refuses a job whose artifacts do not match. Identities:
 
 * `work_unit_id = sha256(JCS(work_unit))`;
 * `stream_id = sha256(JCS({experiment_id, family, params, fingerprint_version, layout_digest, resources_digest}))`; seed `s` of a stream is the same corpus in every work unit, so a sweep can be re-chunked freely;
-* `result_hash = sha256(for each seed: seed u64 LE, fingerprint f64 LE ×30, distance f64 LE)`.
+* `result_hash = sha256(for each seed: seed u64 LE, fingerprint f64 LE ×30, distance f64 LE)`;
+* `metric`: `z` (default, omitted from the identity) or `mahalanobis` (the target must carry a precision matrix built with `build-targets --covariance-lambda`).
 
 A result carries `replicates` (n, median, mean, min, max of the distance over the seeds of the unit). Scientific acceptance rules operate on registered distributional measures over a fixed number of replicates per parameter point; `specimen_seed` and `specimen_distance` exist for visualisation only.
 

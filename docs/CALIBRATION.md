@@ -56,12 +56,33 @@ This is the correct answer for a grid that does not contain the point: the best 
 4. **The self-citation generator, as implemented here, collapses over much of its parameter space.** The on-grid planted text is a handful of repeated words. Whether the original authors' model has the same property is a fidelity question for the domain advisor; the point for the platform is that the calibration tooling exposes it.
 5. **The bootstrap scale is a rough normaliser and biased for repetition statistics.** Resampling paragraph blocks with replacement duplicates paragraphs, which shifts the repetition, type-token and hapax statistics of every resample away from the original. Visible consequence: the manuscript's own block-bootstrap resamples sit at distance 3.2 to 4.6 from the manuscript's target (median 3.8), where a perfect normaliser would give about 1. Planted fresh replicates sit at 1.2 to 2.9. Candidates for the statistician: a subsampling estimator without replacement, a half-split estimator, or a covariance-based (Mahalanobis) distance with regularisation.
 
+## Addendum: scale estimator and Mahalanobis metric (overnight batch, part 3)
+
+Point 5 above asked whether the block-bootstrap scale is the problem. Tooling added: `build-targets --scale subsample --fraction 0.5` (paragraph blocks without replacement, scale corrected by `sqrt(f/(1-f))`, which is 1 at f = 0.5) and `--covariance-lambda λ` (stores the inverse of `(1-λ)C + λI` on the scaled residuals); `make-job --metric mahalanobis`; `compare --metric`.
+
+Evaluation on the off-grid planted point (64 fresh replicates of the true generator against targets built from the planted corpus; controls with 8 replicates):
+
+| Target scale / metric | Self-distance median | q90 | q99 | Controls (bag-of-words / Markov / gibberish) | Separation (control ÷ self median) |
+|---|---|---|---|---|---|
+| block bootstrap, z | 2.14 | 2.75 | 3.55 | 30.4 / 205 / 36.5 (subsample target) | ≈ 14 |
+| subsample f = 0.5, z | 2.20 | 2.73 | 3.66 | 30.4 / 205 / 36.5 | ≈ 14 |
+| subsample, Mahalanobis λ = 0.5 | **1.71** | 2.23 | 2.41 | 28.7 / 208 / 27.4 | ≈ 17 |
+| block bootstrap, Mahalanobis λ = 0.5 | 1.74 | 2.20 | 2.41 | — | — |
+
+Readings:
+
+1. **The scale estimator is not the issue.** Subsampling without replacement gives the same self-distance distribution as the block bootstrap. Fresh replicates sit at about 2, not at the ≈ 1.4 a perfect normaliser would give, because resampling *within one corpus* cannot see the *between-seed* variance of a path-dependent generator. That variance is what the per-family calibration of rule C absorbs. Either estimator is acceptable; the choice is the statistician's, and the subsample estimator has the cleaner theory for repetition statistics.
+2. **The Mahalanobis metric helps modestly.** With λ = 0.5 the self-distances tighten by about 20 % and the control-to-self separation improves from ≈ 14 to ≈ 17. It also removes the double counting of the correlated word-length bins. λ is a registered constant; λ = 1 reproduces the z-distance exactly, so the two metrics are one family.
+3. On the manuscript, the subsample-scale target changes the control distances little (Markov 10.0 against 9.9; bag-of-words 13.1 against 8.6; the manuscript's halves 7.7 and 4.7).
+
+The metric is a per-unit field (`metric`, default `z`, absent from the identity of existing units), so a registered experiment chooses once and every work unit carries the choice.
+
 ## Recommendation to the statistical-methods lead
 
 - Primary rule: rule C, with ε_med calibrated per family from at least five planted points spread over the parameter space, and N fixed at 16 or more for the confirmation level (N = 8 is enough for coarse levels).
 - Report per point: median, acceptance probability with its Wilson interval (rule A's quantities, informative even when not decisive), and the replicate cloud statistics (rule B's quantities). Acceptance by rule C only.
 - Search: coarse-to-fine with registered levels; the refinement stopping rule is part of the registration.
-- Before ε is frozen: replace or validate the bootstrap scale (point 5 above), and decide between the weighted z-distance and a regularised Mahalanobis distance.
+- Before ε is frozen: choose the scale estimator (block bootstrap or subsample; the addendum shows they agree) and decide between the z-distance and the regularised Mahalanobis distance (the addendum shows a modest gain at λ = 0.5).
 
 ## Reproduce
 

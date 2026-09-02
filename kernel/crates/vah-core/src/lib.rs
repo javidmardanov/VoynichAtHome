@@ -96,6 +96,28 @@ pub struct WorkUnit {
     pub seed_start: u64,
     /// Number of seeds (replicates of this parameter point in this unit).
     pub seed_count: u32,
+    /// Distance metric: `z` (weighted z-distance, default) or `mahalanobis`
+    /// (needs a target with a precision matrix). Absent from the canonical
+    /// JSON when it is the default, so existing units keep their identity.
+    #[serde(default = "default_metric", skip_serializing_if = "is_default_metric")]
+    pub metric: String,
+}
+
+fn default_metric() -> String {
+    "z".to_string()
+}
+
+fn is_default_metric(m: &String) -> bool {
+    m == "z"
+}
+
+/// Distance under a unit's metric.
+pub fn unit_distance(metric: &str, f: &Fingerprint, target: &Target) -> Result<f64, CoreError> {
+    match metric {
+        "z" => Ok(vah_stats::distance(f, target)?),
+        "mahalanobis" => Ok(vah_stats::distance_mahalanobis(f, target)?),
+        other => Err(CoreError::Invalid(format!("unknown metric {other}"))),
+    }
 }
 
 impl WorkUnit {
@@ -346,6 +368,16 @@ pub fn validate_work_unit(
         )));
     }
     target.validate()?;
+    match wu.metric.as_str() {
+        "z" => {}
+        "mahalanobis" if target.precision.is_some() => {}
+        "mahalanobis" => {
+            return Err(CoreError::Invalid(
+                "metric mahalanobis needs a target with a precision matrix".into(),
+            ))
+        }
+        other => return Err(CoreError::Invalid(format!("unknown metric {other}"))),
+    }
     if target.version != wu.fingerprint_version {
         return Err(CoreError::Schema(
             "target version differs from the work unit's fingerprint version".into(),
@@ -432,7 +464,7 @@ pub fn run_work_unit<F: FnMut(u32, u32)>(
                 what: vah_stats::STAT_NAMES[i].to_string(),
             });
         }
-        let d = vah_stats::distance(&fp, target)?;
+        let d = unit_distance(&wu.metric, &fp, target)?;
         if d < specimen_distance {
             specimen_distance = d;
             specimen_seed = seed;
@@ -512,6 +544,7 @@ pub fn make_work_unit(
         },
         seed_start,
         seed_count,
+        metric: default_metric(),
     })
 }
 
@@ -645,7 +678,180 @@ pub fn build_target(corpus: &Corpus, resamples: u32, bootstrap_seed: u64) -> Tar
         mean: base.values,
         scale,
         weight: vec![1.0; n],
+        precision: None,
     }
+}
+
+/// How a target's scale (and optional covariance) is estimated.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TargetOptions {
+    pub resamples: u32,
+    pub seed: u64,
+    /// `block-bootstrap` (paragraph blocks with replacement, the original
+    /// method) or `subsample` (paragraph blocks without replacement up to
+    /// `fraction` of the words, scale corrected by `sqrt(f / (1 - f))`).
+    pub method: String,
+    pub fraction: f64,
+    /// When set, a precision matrix is stored: the inverse of
+    /// `(1 - lambda) * C + lambda * I`, where `C` is the covariance of the
+    /// scaled residuals over the resamples. `lambda = 1` reproduces the
+    /// z-distance.
+    pub covariance_lambda: Option<f64>,
+}
+
+impl TargetOptions {
+    pub fn block_bootstrap(resamples: u32, seed: u64) -> TargetOptions {
+        TargetOptions {
+            resamples,
+            seed,
+            method: "block-bootstrap".into(),
+            fraction: 1.0,
+            covariance_lambda: None,
+        }
+    }
+    pub fn subsample(resamples: u32, seed: u64, fraction: f64) -> TargetOptions {
+        TargetOptions {
+            resamples,
+            seed,
+            method: "subsample".into(),
+            fraction,
+            covariance_lambda: None,
+        }
+    }
+}
+
+/// One paragraph-block subsample without replacement holding at least
+/// `fraction` of the corpus's words (blocks in a seeded random order).
+pub fn subsample_blocks(
+    corpus: &Corpus,
+    blocks: &[(usize, usize)],
+    fraction: f64,
+    rng: &mut Rng,
+) -> Corpus {
+    let want = (corpus.word_count() as f64 * fraction) as usize;
+    let mut order: Vec<usize> = (0..blocks.len()).collect();
+    for i in (1..order.len()).rev() {
+        let j = rng.below(i + 1);
+        order.swap(i, j);
+    }
+    let mut sample = Corpus {
+        pages: corpus.pages.clone(),
+        lines: Vec::new(),
+    };
+    let mut words = 0usize;
+    for bi in order {
+        if words >= want {
+            break;
+        }
+        let (a, b) = blocks[bi];
+        for l in &corpus.lines[a..b] {
+            words += l.words.len();
+            sample.lines.push(l.clone());
+        }
+    }
+    sample
+}
+
+/// Build a target with explicit options (see [`TargetOptions`]).
+pub fn build_target_with(corpus: &Corpus, opts: &TargetOptions) -> Result<Target, CoreError> {
+    let base = vah_stats::fingerprint(corpus);
+    let n = base.values.len();
+    let names: Vec<String> = vah_stats::STAT_NAMES
+        .iter()
+        .take(n)
+        .map(|s| s.to_string())
+        .collect();
+    let blocks = paragraph_blocks(corpus);
+    let subsample = match opts.method.as_str() {
+        "block-bootstrap" => false,
+        "subsample" => {
+            if !(opts.fraction > 0.0 && opts.fraction < 1.0) {
+                return Err(CoreError::Invalid(
+                    "subsample fraction must be in (0, 1)".into(),
+                ));
+            }
+            true
+        }
+        other => return Err(CoreError::Invalid(format!("unknown scale method {other}"))),
+    };
+    let mut rng = Rng::new(if subsample { "subsample" } else { "bootstrap" }, opts.seed);
+    let done = if blocks.is_empty() { 0 } else { opts.resamples };
+    let mut samples: Vec<Vec<f64>> = Vec::with_capacity(done as usize);
+    for _ in 0..done {
+        let sample = if subsample {
+            subsample_blocks(corpus, &blocks, opts.fraction, &mut rng)
+        } else {
+            resample_blocks(corpus, &blocks, &mut rng)
+        };
+        samples.push(vah_stats::fingerprint(&sample).values);
+    }
+    // Subsampling without replacement at fraction f observes variance
+    // sigma^2 (1/m - 1/n) = sigma^2 (1 - f) / m, so sigma^2 / n = observed * f / (1 - f).
+    let correction = if subsample {
+        libm::sqrt(opts.fraction / (1.0 - opts.fraction))
+    } else {
+        1.0
+    };
+    let mut scale = vec![1.0f64; n];
+    let mut means = vec![0.0f64; n];
+    if done > 1 {
+        let m = done as f64;
+        for i in 0..n {
+            let mean = samples.iter().map(|s| s[i]).sum::<f64>() / m;
+            let var = samples
+                .iter()
+                .map(|s| (s[i] - mean) * (s[i] - mean))
+                .sum::<f64>()
+                / m;
+            means[i] = mean;
+            scale[i] = (libm::sqrt(var) * correction).max(1e-6);
+        }
+    }
+    let precision = match opts.covariance_lambda {
+        None => None,
+        Some(lambda) => {
+            if !(0.0..=1.0).contains(&lambda) {
+                return Err(CoreError::Invalid(
+                    "covariance_lambda must be in [0, 1]".into(),
+                ));
+            }
+            if done < 2 {
+                return Err(CoreError::Invalid(
+                    "covariance needs at least two resamples".into(),
+                ));
+            }
+            let m = done as f64;
+            let mut cov = vec![vec![0.0f64; n]; n];
+            for s in &samples {
+                let z: Vec<f64> = (0..n)
+                    .map(|i| (s[i] - means[i]) * correction / scale[i])
+                    .collect();
+                for (i, row) in cov.iter_mut().enumerate() {
+                    for (j, cell) in row.iter_mut().enumerate() {
+                        *cell += z[i] * z[j];
+                    }
+                }
+            }
+            for (i, row) in cov.iter_mut().enumerate() {
+                for (j, cell) in row.iter_mut().enumerate() {
+                    *cell = (1.0 - lambda) * *cell / m + if i == j { lambda } else { 0.0 };
+                }
+            }
+            Some(vah_stats::invert(&cov).ok_or_else(|| {
+                CoreError::Invalid(
+                    "regularised covariance is singular; raise covariance_lambda".into(),
+                )
+            })?)
+        }
+    };
+    Ok(Target {
+        version: base.version,
+        names,
+        mean: base.values,
+        scale,
+        weight: vec![1.0; n],
+        precision,
+    })
 }
 
 #[cfg(test)]
@@ -838,6 +1044,55 @@ mod tests {
         j.target.scale[0] = 0.0;
         j.work_unit.target_digest = digest_json(&j.target).unwrap();
         assert!(matches!(run_job(&j, |_, _| {}), Err(CoreError::Target(_))));
+    }
+
+    #[test]
+    fn subsample_target_and_mahalanobis_metric() {
+        let c = corpus();
+        let t = build_target_with(&c, &TargetOptions::subsample(30, 3, 0.5)).unwrap();
+        assert!(t.scale.iter().all(|s| *s >= 1e-6 && s.is_finite()));
+        assert!(t.precision.is_none());
+        assert_eq!(
+            build_target_with(&c, &TargetOptions::subsample(30, 3, 0.5)).unwrap(),
+            t
+        );
+        let mut o = TargetOptions::subsample(30, 3, 0.5);
+        o.covariance_lambda = Some(0.5);
+        let tm = build_target_with(&c, &o).unwrap();
+        assert_eq!(tm.precision.as_ref().unwrap().len(), 30);
+        let fp = vah_stats::fingerprint(&c);
+        assert_eq!(vah_stats::distance_mahalanobis(&fp, &tm).unwrap(), 0.0);
+        o.covariance_lambda = Some(1.0);
+        let ti = build_target_with(&c, &o).unwrap();
+        let mut f2 = fp.clone();
+        f2.values[0] += 0.5;
+        let dz = vah_stats::distance(&f2, &ti).unwrap();
+        let dm = vah_stats::distance_mahalanobis(&f2, &ti).unwrap();
+        assert!((dz - dm).abs() < 1e-9, "{dz} vs {dm}");
+        let layout = Layout::uniform(12, 5, 3);
+        let mut wu =
+            make_work_unit("t", "gibberish", Params::new(), &tm, &layout, None, 0, 2).unwrap();
+        wu.metric = "mahalanobis".into();
+        let r = run_work_unit(&wu, &tm, &layout, None, |_, _| {}).unwrap();
+        assert!(r.seeds.iter().all(|s| s.distance.is_finite()));
+        let mut wu2 =
+            make_work_unit("t", "gibberish", Params::new(), &t, &layout, None, 0, 2).unwrap();
+        wu2.metric = "mahalanobis".into();
+        assert!(matches!(
+            run_work_unit(&wu2, &t, &layout, None, |_, _| {}),
+            Err(CoreError::Invalid(_))
+        ));
+        wu2.metric = "nope".into();
+        assert!(matches!(
+            run_work_unit(&wu2, &t, &layout, None, |_, _| {}),
+            Err(CoreError::Invalid(_))
+        ));
+        let wu3 = make_work_unit("t", "gibberish", Params::new(), &t, &layout, None, 0, 2).unwrap();
+        assert!(!canonical_json(&wu3).unwrap().contains("metric"));
+        assert!(matches!(
+            build_target_with(&c, &TargetOptions::subsample(30, 3, 1.5)),
+            Err(CoreError::Invalid(_))
+        ));
     }
 
     #[test]

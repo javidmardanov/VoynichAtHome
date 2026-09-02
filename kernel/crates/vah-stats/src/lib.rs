@@ -103,6 +103,13 @@ pub struct Target {
     pub mean: Vec<f64>,
     pub scale: Vec<f64>,
     pub weight: Vec<f64>,
+    /// Optional precision matrix (inverse of the regularised covariance of
+    /// the scaled residuals `(x - mean) / scale`), row-major, for the
+    /// Mahalanobis metric. Absent in targets built without a covariance;
+    /// absent from the canonical JSON when `None`, so older targets keep
+    /// their digests.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub precision: Option<Vec<Vec<f64>>>,
 }
 
 /// Why a distance could not be computed.
@@ -184,6 +191,18 @@ impl Target {
                 "weights must not all be zero".to_string(),
             ));
         }
+        if let Some(p) = &self.precision {
+            if p.len() != n || p.iter().any(|row| row.len() != n) {
+                return Err(TargetError::Invalid(
+                    "precision matrix has the wrong shape".to_string(),
+                ));
+            }
+            if p.iter().flatten().any(|v| !v.is_finite()) {
+                return Err(TargetError::Invalid(
+                    "precision matrix has a non-finite entry".to_string(),
+                ));
+            }
+        }
         Ok(())
     }
 }
@@ -220,6 +239,93 @@ pub fn distance(f: &Fingerprint, t: &Target) -> Result<f64, TargetError> {
         return Err(TargetError::NonFinite("distance".to_string()));
     }
     Ok(d)
+}
+
+/// Root-mean-square Mahalanobis distance on the scaled residuals:
+/// `sqrt(z^T P z / n)` with `z_i = (f_i - m_i) / s_i` and `P` the target's
+/// precision matrix. With `P = I` this equals the unweighted z-distance.
+pub fn distance_mahalanobis(f: &Fingerprint, t: &Target) -> Result<f64, TargetError> {
+    t.validate()?;
+    if f.version != t.version {
+        return Err(TargetError::VersionMismatch {
+            fingerprint: f.version.clone(),
+            target: t.version.clone(),
+        });
+    }
+    let p = t
+        .precision
+        .as_ref()
+        .ok_or_else(|| TargetError::Invalid("target has no precision matrix".to_string()))?;
+    let n = f.values.len();
+    if n != t.mean.len() {
+        return Err(TargetError::Shape);
+    }
+    let mut z = Vec::with_capacity(n);
+    for (i, v) in f.values.iter().enumerate() {
+        if !v.is_finite() {
+            return Err(TargetError::NonFinite(STAT_NAMES[i].to_string()));
+        }
+        z.push((v - t.mean[i]) / t.scale[i]);
+    }
+    let mut acc = 0.0f64;
+    for i in 0..n {
+        let mut row = 0.0f64;
+        for j in 0..n {
+            row += p[i][j] * z[j];
+        }
+        acc += z[i] * row;
+    }
+    let d = libm::sqrt(acc.max(0.0) / n as f64);
+    if !d.is_finite() {
+        return Err(TargetError::NonFinite("distance".to_string()));
+    }
+    Ok(d)
+}
+
+/// Invert a square matrix by Gauss-Jordan elimination with partial
+/// pivoting, using only IEEE basic operations (deterministic). Returns
+/// `None` when the matrix is singular to working precision.
+pub fn invert(m: &[Vec<f64>]) -> Option<Vec<Vec<f64>>> {
+    let n = m.len();
+    if n == 0 || m.iter().any(|r| r.len() != n) {
+        return None;
+    }
+    let mut a: Vec<Vec<f64>> = m.to_vec();
+    let mut inv: Vec<Vec<f64>> = (0..n)
+        .map(|i| (0..n).map(|j| if i == j { 1.0 } else { 0.0 }).collect())
+        .collect();
+    for col in 0..n {
+        let mut piv = col;
+        for r in col + 1..n {
+            if a[r][col].abs() > a[piv][col].abs() {
+                piv = r;
+            }
+        }
+        if a[piv][col].abs() < 1e-300 {
+            return None;
+        }
+        a.swap(col, piv);
+        inv.swap(col, piv);
+        let d = a[col][col];
+        for j in 0..n {
+            a[col][j] /= d;
+            inv[col][j] /= d;
+        }
+        for r in 0..n {
+            if r == col {
+                continue;
+            }
+            let f = a[r][col];
+            if f == 0.0 {
+                continue;
+            }
+            for j in 0..n {
+                a[r][j] -= f * a[col][j];
+                inv[r][j] -= f * inv[col][j];
+            }
+        }
+    }
+    Some(inv)
 }
 
 /// Compute the `fingerprint-v1` vector of a corpus.
@@ -680,6 +786,7 @@ mod tests {
             mean: f.values.clone(),
             scale: vec![0.1; STAT_NAMES.len()],
             weight: vec![1.0; STAT_NAMES.len()],
+            precision: None,
         };
         assert_eq!(distance(&f, &t).unwrap(), 0.0);
         let mut shifted = f.clone();
@@ -709,6 +816,40 @@ mod tests {
         let mut nan = f.clone();
         nan.values[0] = f64::NAN;
         assert!(matches!(distance(&nan, &t), Err(TargetError::NonFinite(_))));
+    }
+
+    #[test]
+    fn mahalanobis_with_identity_precision_equals_z_distance() {
+        let c = corpus(&["daiin.dain.chol", "chol.chor.qokedy.daiin"]);
+        let f = fingerprint(&c);
+        let n = STAT_NAMES.len();
+        let mut t = Target {
+            version: VERSION.to_string(),
+            names: STAT_NAMES.iter().map(|s| s.to_string()).collect(),
+            mean: f.values.iter().map(|v| v + 0.05).collect(),
+            scale: vec![0.1; n],
+            weight: vec![1.0; n],
+            precision: Some(
+                (0..n)
+                    .map(|i| (0..n).map(|j| if i == j { 1.0 } else { 0.0 }).collect())
+                    .collect(),
+            ),
+        };
+        let dz = distance(&f, &t).unwrap();
+        let dm = distance_mahalanobis(&f, &t).unwrap();
+        assert!((dz - dm).abs() < 1e-12, "{dz} vs {dm}");
+        t.precision = None;
+        assert!(matches!(
+            distance_mahalanobis(&f, &t),
+            Err(TargetError::Invalid(_))
+        ));
+        t.precision = Some(vec![vec![1.0; n]; n - 1]);
+        assert!(matches!(t.validate(), Err(TargetError::Invalid(_))));
+        let m = vec![vec![4.0, 7.0], vec![2.0, 6.0]];
+        let inv = invert(&m).unwrap();
+        assert!((inv[0][0] - 0.6).abs() < 1e-12 && (inv[0][1] + 0.7).abs() < 1e-12);
+        assert!((inv[1][0] + 0.2).abs() < 1e-12 && (inv[1][1] - 0.4).abs() < 1e-12);
+        assert!(invert(&[vec![1.0, 2.0], vec![2.0, 4.0]]).is_none());
     }
 
     #[test]

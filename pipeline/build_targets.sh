@@ -20,6 +20,6 @@ if [ ! -f "$FILE" ] && [ -f data/ZL3b-n_updated.txt ]; then FILE=data/ZL3b-n_upd
 echo "building artifacts from $FILE"
 V="cargo run -q --release -p vah-cli --"
 (cd kernel && $V partition "../$FILE" --out ../pipeline/partitions_v1.json)
-(cd kernel && $V build-targets "../$FILE" --out ../pipeline/targets --partition ../pipeline/partitions_v1.json --roles discovery,validation --resamples 200 --seed 1 --markov-order 3)
+(cd kernel && $V build-targets "../$FILE" --out ../pipeline/targets --partition ../pipeline/partitions_v1.json --roles discovery,validation --resamples 200 --scale-seed 1 --markov-order 3)
 (cd kernel && $V fingerprint "../$FILE") > pipeline/targets/descriptive_v1.json
 echo "done; see pipeline/partitions_v1.json and pipeline/targets/"

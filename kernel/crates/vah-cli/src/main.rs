@@ -38,6 +38,49 @@ struct Cli {
     cmd: Cmd,
 }
 
+/// How the target's scale (and optional covariance) is estimated.
+#[derive(clap::Args, Clone)]
+struct ScaleOpts {
+    /// Bootstrap resamples for the per-statistic scale.
+    #[arg(long, default_value_t = 200)]
+    resamples: u32,
+    /// Seed of the resampling.
+    #[arg(long = "scale-seed", default_value_t = 1)]
+    scale_seed: u64,
+    /// Scale estimator: block-bootstrap (paragraph blocks with replacement) or
+    /// subsample (paragraph blocks without replacement, corrected).
+    #[arg(long, default_value = "block-bootstrap")]
+    scale: String,
+    /// Subsample fraction of the words (subsample method only).
+    #[arg(long, default_value_t = 0.5)]
+    fraction: f64,
+    /// Store a precision matrix for the Mahalanobis metric, regularised
+    /// towards the identity by this lambda in [0, 1].
+    #[arg(long)]
+    covariance_lambda: Option<f64>,
+}
+
+impl ScaleOpts {
+    fn options(&self) -> vah_core::TargetOptions {
+        vah_core::TargetOptions {
+            resamples: self.resamples,
+            seed: self.scale_seed,
+            method: self.scale.clone(),
+            fraction: self.fraction,
+            covariance_lambda: self.covariance_lambda,
+        }
+    }
+    /// Build with the original function when the options are the classic
+    /// defaults, so committed targets keep their exact bytes.
+    fn build(&self, corpus: &Corpus) -> Res<Target> {
+        if self.scale == "block-bootstrap" && self.covariance_lambda.is_none() {
+            Ok(build_target(corpus, self.resamples, self.scale_seed))
+        } else {
+            Ok(vah_core::build_target_with(corpus, &self.options())?)
+        }
+    }
+}
+
 /// Options shared by the commands that read a transliteration file.
 #[derive(clap::Args, Clone)]
 struct CorpusOpts {
@@ -94,11 +137,8 @@ enum Cmd {
         out: PathBuf,
         #[command(flatten)]
         corpus: CorpusOpts,
-        /// Bootstrap resamples for the per-statistic scale.
-        #[arg(long, default_value_t = 200)]
-        resamples: u32,
-        #[arg(long, default_value_t = 1)]
-        seed: u64,
+        #[command(flatten)]
+        scale: ScaleOpts,
         /// Order of the glyph n-gram model in the resources.
         #[arg(long, default_value_t = 3)]
         markov_order: usize,
@@ -115,6 +155,9 @@ enum Cmd {
         corpus: CorpusOpts,
         #[arg(long, default_value_t = 3)]
         seeds: u32,
+        /// Distance metric: z or mahalanobis.
+        #[arg(long, default_value = "z")]
+        metric: String,
     },
     /// Assemble a self-contained job JSON.
     MakeJob {
@@ -138,6 +181,9 @@ enum Cmd {
         /// Truncate the layout to at most this many words (0 = full).
         #[arg(long, default_value_t = 0)]
         max_tokens: usize,
+        /// Distance metric: z or mahalanobis (needs a target with a precision matrix).
+        #[arg(long, default_value = "z")]
+        metric: String,
     },
     /// Execute a job and print the result JSON.
     RunWu {
@@ -182,8 +228,8 @@ enum Cmd {
         seed: u64,
         #[arg(long)]
         out: PathBuf,
-        #[arg(long, default_value_t = 200)]
-        resamples: u32,
+        #[command(flatten)]
+        scale: ScaleOpts,
         #[arg(long, default_value_t = 3)]
         markov_order: usize,
         /// Truncate the layout to this many words (0 = full).
@@ -444,15 +490,14 @@ fn run(cli: Cli) -> Res<()> {
             file,
             out,
             corpus: opts,
-            resamples,
-            seed,
+            scale,
             markov_order,
             bag_limit,
         } => {
             let l = load(&file, &opts)?;
             let corpus = &l.corpus;
             fs::create_dir_all(&out)?;
-            let target = build_target(corpus, resamples, seed);
+            let target = scale.build(corpus)?;
             let tf = TargetFile {
                 target,
                 provenance: TargetProvenance {
@@ -460,8 +505,8 @@ fn run(cli: Cli) -> Res<()> {
                     view_id: l.view_id.clone(),
                     partition_digest: l.partition_digest.clone(),
                     roles: l.roles.clone(),
-                    resamples,
-                    bootstrap_seed: seed,
+                    resamples: scale.resamples,
+                    bootstrap_seed: scale.scale_seed,
                     kernel_version: vah_core::KERNEL_VERSION.to_string(),
                     words: corpus.word_count(),
                     lines: corpus.lines.len(),
@@ -495,6 +540,7 @@ fn run(cli: Cli) -> Res<()> {
             targets,
             corpus: opts,
             seeds,
+            metric,
         } => {
             let l = load(&file, &opts)?;
             let corpus = &l.corpus;
@@ -503,7 +549,7 @@ fn run(cli: Cli) -> Res<()> {
             let resources: Resources = read_json(&targets.join("resources_v1.json"))?;
             println!("{:<30} {:>9} {:>9}", "corpus", "median", "min");
             let d = |c: &Corpus| {
-                vah_stats::distance(&vah_stats::fingerprint(c), &target)
+                vah_core::unit_distance(&metric, &vah_stats::fingerprint(c), &target)
                     .map(|d| format!("{d:9.3}"))
                     .unwrap_or_else(|e| e.to_string())
             };
@@ -526,7 +572,7 @@ fn run(cli: Cli) -> Res<()> {
                 ""
             );
             for family in vah_core::vah_generators::FAMILIES {
-                let wu = vah_core::make_work_unit(
+                let mut wu = vah_core::make_work_unit(
                     "sanity",
                     family,
                     Params::new(),
@@ -536,6 +582,7 @@ fn run(cli: Cli) -> Res<()> {
                     0,
                     seeds,
                 )?;
+                wu.metric = metric.clone();
                 let job = Job {
                     work_unit: wu,
                     target: target.clone(),
@@ -562,6 +609,7 @@ fn run(cli: Cli) -> Res<()> {
             seed_start,
             seed_count,
             max_tokens,
+            metric,
         } => {
             let params: Params = serde_json::from_str(&params)?;
             let target = read_target(&target)?;
@@ -573,7 +621,7 @@ fn run(cli: Cli) -> Res<()> {
                 Some(p) => Some(read_json(&p)?),
                 None => None,
             };
-            let wu = vah_core::make_work_unit(
+            let mut wu = vah_core::make_work_unit(
                 &experiment,
                 &family,
                 params,
@@ -583,6 +631,7 @@ fn run(cli: Cli) -> Res<()> {
                 seed_start,
                 seed_count,
             )?;
+            wu.metric = metric;
             let job = Job {
                 work_unit: wu,
                 target,
@@ -665,7 +714,7 @@ fn run(cli: Cli) -> Res<()> {
             resources,
             seed,
             out,
-            resamples,
+            scale,
             markov_order,
             max_tokens,
         } => {
@@ -690,7 +739,7 @@ fn run(cli: Cli) -> Res<()> {
             let mut rng = Rng::new(&format!("planted:{source_digest}"), seed);
             let corpus = generator.generate(&mut rng, &layout);
             fs::create_dir_all(&out)?;
-            let target = build_target(&corpus, resamples, 1);
+            let target = scale.build(&corpus)?;
             let tf = TargetFile {
                 target,
                 provenance: TargetProvenance {
@@ -698,8 +747,8 @@ fn run(cli: Cli) -> Res<()> {
                     view_id: "planted-v1".to_string(),
                     partition_digest: None,
                     roles: Vec::new(),
-                    resamples,
-                    bootstrap_seed: 1,
+                    resamples: scale.resamples,
+                    bootstrap_seed: scale.scale_seed,
                     kernel_version: vah_core::KERNEL_VERSION.to_string(),
                     words: corpus.word_count(),
                     lines: corpus.lines.len(),
