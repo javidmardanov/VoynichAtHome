@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "vah-search-1"
+    },
+    "experiment": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160
+    },
+    "ciphertext": {
+      "minItems": 4,
+      "maxItems": 20000,
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 91
+      }
+    },
+    "symbol_count": {
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 92
+    },
+    "encoding": {
+      "type": "string",
+      "enum": [
+        "substitution",
+        "homophonic",
+        "balanced-homophonic"
+      ]
+    },
+    "algorithm": {
+      "type": "string",
+      "enum": [
+        "beam-v1",
+        "restart-anneal-v1"
+      ]
+    },
+    "seed": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "start": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 4294967295
+    },
+    "iterations": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100000
+    },
+    "beam_width": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 64
+    },
+    "model": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "vah-ngram-1"
+        },
+        "alphabet": {
+          "type": "string",
+          "const": "abcdefghilmnopqrstuvxyz"
+        },
+        "training_sources": {
+          "minItems": 1,
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          }
+        },
+        "quadgrams": {
+          "minItems": 279841,
+          "maxItems": 279841,
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": -1000000,
+            "maximum": 0
+          }
+        },
+        "unigrams": {
+          "minItems": 23,
+          "maxItems": 23,
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": -1000000,
+            "maximum": 0
+          }
+        }
+      },
+      "required": [
+        "version",
+        "alphabet",
+        "training_sources",
+        "quadgrams",
+        "unigrams"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "version",
+    "experiment",
+    "ciphertext",
+    "symbol_count",
+    "encoding",
+    "algorithm",
+    "seed",
+    "start",
+    "iterations",
+    "beam_width",
+    "model"
+  ],
+  "additionalProperties": false,
+  "$id": "urn:voynich:contracts:v1:search",
+  "x-semantic-validation": "See platform/src/lib/contracts.ts and the Rust kernel; schema alone does not establish valid identities, scores, or execution."
+}

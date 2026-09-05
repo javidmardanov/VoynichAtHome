@@ -1,0 +1,14 @@
+{
+  "name": "voynich-at-home",
+  "private": true,
+  "workspaces": ["platform"],
+  "engines": { "node": ">=22.13.0" },
+  "packageManager": "npm@11.19.1",
+  "overrides": { "@sveltejs/kit": { "cookie": "0.7.2" }, "@esbuild-kit/core-utils": { "esbuild": "0.25.12" } },
+  "scripts": {
+    "dev": "npm run dev --workspace platform",
+    "build": "npm run build --workspace platform",
+    "check": "npm run check --workspace platform",
+    "test": "npm run test --workspace platform"
+  }
+}

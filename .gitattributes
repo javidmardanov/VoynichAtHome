@@ -3,3 +3,4 @@
 *.png binary
 *.jpg binary
 *.zip binary
+third_party/** -text -whitespace

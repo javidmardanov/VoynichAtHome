@@ -8,6 +8,24 @@ struct Args {
 }
 #[derive(Subcommand)]
 enum Command {
+    /// Construct strict Naibbe v2 benchmark text. Not a worker operation.
+    EncodeNaibbe {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        key: PathBuf,
+        #[arg(long)]
+        seed: u64,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    /// Parse preserved Naibbe word boundaries using the published tables.
+    ParseNaibbe {
+        #[arg(long)]
+        input: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
     Train {
         #[arg(long)]
         input: PathBuf,
@@ -36,6 +54,32 @@ fn main() {
 }
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     match Args::parse().command {
+        Command::EncodeNaibbe {
+            input,
+            key,
+            seed,
+            out,
+        } => {
+            let text = std::fs::read_to_string(input)?;
+            let plain: Result<Vec<u8>, _> = text
+                .trim()
+                .chars()
+                .map(|c| {
+                    vah_search::ALPHABET
+                        .find(c)
+                        .map(|i| i as u8)
+                        .ok_or("invalid normalized text")
+                })
+                .collect();
+            let key: Vec<u8> = serde_json::from_slice(&std::fs::read(key)?)?;
+            let cipher = vah_search::naibbe::Tables::new().encrypt(&plain?, &key, seed)?;
+            std::fs::write(out, cipher)?;
+        }
+        Command::ParseNaibbe { input, out } => {
+            let cipher = std::fs::read_to_string(input)?;
+            let symbols = vah_search::naibbe::Tables::new().parse(&cipher)?;
+            std::fs::write(out, serde_json::to_vec(&symbols)?)?;
+        }
         Command::Train { input, source, out } => {
             let text = std::fs::read_to_string(input)?;
             let symbols: Result<Vec<u8>, _> = text

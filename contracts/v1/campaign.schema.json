@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "vah-campaign-1"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 5,
+      "maxLength": 120
+    },
+    "question": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 500
+    },
+    "kind": {
+      "type": "string",
+      "enum": [
+        "recovery",
+        "generator-test",
+        "manuscript"
+      ]
+    },
+    "protocol_url": {
+      "type": "string",
+      "format": "uri"
+    },
+    "source_digests": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      }
+    },
+    "methods": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+      }
+    },
+    "metric": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "comparisons": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      }
+    },
+    "stopping_rule": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 500
+    },
+    "exposure": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 1000
+    },
+    "recovery_evidence": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      }
+    },
+    "max_units": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100000
+    },
+    "interpretation": {
+      "type": "string",
+      "minLength": 10,
+      "maxLength": 1000
+    }
+  },
+  "required": [
+    "version",
+    "id",
+    "title",
+    "question",
+    "kind",
+    "protocol_url",
+    "source_digests",
+    "methods",
+    "metric",
+    "comparisons",
+    "stopping_rule",
+    "exposure",
+    "recovery_evidence",
+    "max_units",
+    "interpretation"
+  ],
+  "additionalProperties": false,
+  "$id": "urn:voynich:contracts:v1:campaign",
+  "x-semantic-validation": "See platform/src/lib/contracts.ts and the Rust kernel; schema alone does not establish valid identities, scores, or execution."
+}

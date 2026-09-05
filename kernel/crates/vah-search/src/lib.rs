@@ -1,6 +1,7 @@
 //! Bounded known-message recovery. Solver inputs contain no plaintext or key.
 //! Integer n-gram scores and deterministic random streams support replay.
 #![forbid(unsafe_code)]
+pub mod naibbe;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use vah_generators::Rng;
@@ -145,9 +146,11 @@ impl Job {
                 .any(|c| *c as usize >= self.symbol_count)
             || !(1..=100_000).contains(&self.iterations)
             || !(1..=64).contains(&self.beam_width)
-            || !["substitution", "homophonic"].contains(&self.encoding.as_str())
+            || !["substitution", "homophonic", "balanced-homophonic"]
+                .contains(&self.encoding.as_str())
             || !["restart-anneal-v1", "beam-v1"].contains(&self.algorithm.as_str())
             || (self.encoding == "substitution" && self.symbol_count != A)
+            || (self.encoding == "balanced-homophonic" && self.symbol_count % A != 0)
         {
             return Err("invalid or unsupported bounded search job".into());
         }
@@ -157,7 +160,10 @@ impl Job {
         self.ciphertext.iter().map(|c| key[*c as usize]).collect()
     }
     fn valid_key(&self, key: &[u8]) -> bool {
-        key.len() == self.symbol_count
+        (self.encoding != "balanced-homophonic"
+            || (0..A as u8)
+                .all(|c| key.iter().filter(|x| **x == c).count() == self.symbol_count / A))
+            && key.len() == self.symbol_count
             && key.iter().all(|c| (*c as usize) < A)
             && (self.encoding != "substitution" || key.iter().collect::<BTreeSet<_>>().len() == A)
     }
@@ -206,13 +212,17 @@ pub fn step(job: &Job, checkpoint: Option<Checkpoint>, proposals: u32) -> Res<Ch
     if job.algorithm != "restart-anneal-v1" || !(1..=1024).contains(&proposals) {
         return Err("step requires annealing and 1..=1024 proposals".into());
     }
-    let mut cp = match checkpoint {
+    let cp = match checkpoint {
         Some(c) => {
             job.check_checkpoint(&c)?;
             c
         }
         None => job.initial()?,
     };
+    advance(job, cp, proposals)
+}
+
+fn advance(job: &Job, mut cp: Checkpoint, proposals: u32) -> Res<Checkpoint> {
     let mut plain = job.decode(&cp.key);
     // Index windows affected by a cipher symbol. A swap only rescans their union.
     let mut affected = vec![Vec::<usize>::new(); job.symbol_count];
@@ -356,7 +366,10 @@ pub fn beam(job: &Job) -> Res<ResultRecord> {
                 if evaluations >= job.iterations {
                     break;
                 }
-                if job.encoding == "substitution" && key.contains(&letter) {
+                if (job.encoding == "substitution" && key.contains(&letter))
+                    || (job.encoding == "balanced-homophonic"
+                        && key.iter().filter(|x| **x == letter).count() >= job.symbol_count / A)
+                {
                     continue;
                 }
                 let mut k = key.clone();
@@ -401,11 +414,23 @@ pub fn beam(job: &Job) -> Res<ResultRecord> {
     }
     let mut complete = Vec::new();
     for (mut key, _) in beam {
-        let unused: Vec<_> = (0..A as u8).filter(|c| !key.contains(c)).collect();
+        let capacity = if job.encoding == "substitution" {
+            1
+        } else {
+            job.symbol_count / A
+        };
+        let unused: Vec<_> = (0..A as u8)
+            .flat_map(|c| {
+                std::iter::repeat_n(
+                    c,
+                    capacity.saturating_sub(key.iter().filter(|x| **x == c).count()),
+                )
+            })
+            .collect();
         let mut it = unused.into_iter();
         for c in &mut key {
             if *c == 255 {
-                *c = if job.encoding == "substitution" {
+                *c = if job.encoding != "homophonic" {
                     it.next().ok_or("beam completion failed")?
                 } else {
                     0
@@ -424,7 +449,7 @@ pub fn run(job: &Job) -> Res<ResultRecord> {
     }
     let mut cp = job.initial()?;
     while cp.iteration < job.iterations {
-        cp = step(job, Some(cp), 1024)?;
+        cp = advance(job, cp, 1024)?;
     }
     finish(job, cp)
 }

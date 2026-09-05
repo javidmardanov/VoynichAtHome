@@ -1,0 +1,11 @@
+<script lang="ts">
+  import { onMount } from 'svelte';import { api } from '$lib/api';
+  let {data}=$props();let community=$state<any>(null),error=$state(''),notice=$state('');
+  async function join(id:string){try{await api('team',{join:id});notice='You joined the team. Public membership depends on your profile visibility.';}catch(e){error=e instanceof Error?e.message:'Unable to join.';}}
+  onMount(()=>{api('community').then(c=>community=c).catch(e=>error=e.message);});
+</script>
+<svelte:head><title>Community — Voynich@home</title></svelte:head>
+<div class="page"><p class="eyebrow">A shared effort</p><h1>People behind the work.</h1><p class="lede">Recognition for checked contributions. Joining these public lists is optional, and credit never measures scientific correctness.</p>{#if error}<p class="error" role="alert">{error}</p>{/if}{#if notice}<p class="notice" role="status">{notice}</p>{/if}
+<div class="two-column"><section class="panel"><h2>Contributors</h2>{#if community?.people.length}<div class="table-wrap"><table><thead><tr><th>Name</th><th>Checked work</th><th>Credit</th></tr></thead><tbody>{#each community.people as p}<tr><td>{p.display_name}</td><td>{p.checked}</td><td>{p.credit.toLocaleString()}</td></tr>{/each}</tbody></table></div>{:else}<div class="empty"><h3>A community taking shape.</h3><p>No public contributions to show yet.</p></div>{/if}<p class="small muted" style="margin-top:20px">The first 100 public profiles, ordered by checked credit. <a href="/account">Choose your profile visibility</a>.</p></section>
+<section class="panel"><h2>Teams</h2>{#if community?.teams.length}{#each community.teams as team}<article style="border-bottom:1px solid var(--line);padding:20px 0"><h3>{team.name}</h3><p class="small muted">{team.members} public members · {team.credit.toLocaleString()} credit</p>{#if data.user}<button class="secondary" onclick={()=>join(team.id)}>Join team</button>{:else}<a href="/account">Sign in to join →</a>{/if}</article>{/each}{:else}<p class="muted">No public teams yet. Bring a reading group, a classroom, or a few curious friends.</p>{/if}<a href="/account">Create or manage a team →</a></section></div>
+<p class="small muted">Names and teams may be hidden for impersonation, harassment, or spam. The project owner handles moderation; no outside endorsement is implied by participation.</p></div>

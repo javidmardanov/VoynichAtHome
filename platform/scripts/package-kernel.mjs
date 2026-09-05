@@ -1,0 +1,15 @@
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+const bytes=await readFile('../kernel/target/wasm32-unknown-unknown/release/vah_search_wasm.wasm');
+const module=await WebAssembly.compile(bytes);
+if(WebAssembly.Module.imports(module).length)throw Error('Approved search kernel must have no imports');
+const expected=['memory','vah_alloc','vah_free','vah_search','vah_out_ptr','vah_out_len','vah_out_clear'];
+for(const name of expected)if(!WebAssembly.Module.exports(module).some(e=>e.name===name))throw Error('Missing export '+name);
+const digest='sha256:'+createHash('sha256').update(bytes).digest('hex');
+const release={id:'search-'+digest.slice(7,23),digest,url:'/kernels/'+digest.slice(7)+'.wasm',abi:'vah-search-cabi-1',max_memory_bytes:100663296,imports:[]};
+await mkdir('static/kernels',{recursive:true});await mkdir('src/lib/generated',{recursive:true});
+await writeFile('static'+release.url,bytes);
+await writeFile('src/lib/generated/kernel.json',JSON.stringify(release,null,2)+'\n');
+await writeFile('static/kernels/release.json',JSON.stringify(release,null,2)+'\n');
+await writeFile('src/lib/generated/search.wasm',bytes);
+console.log(JSON.stringify(release));

@@ -12,7 +12,7 @@ def job_for(plain,seed,encoding,algorithm,iterations,start):
     alphabet=list(range(len(ALPHABET))); rng.shuffle(alphabet)
     if encoding=='substitution':
         ciphertext=[alphabet[ALPHABET.index(c)] for c in plain];symbols=23
-    elif encoding=='homophonic':
+    elif encoding in ('homophonic','balanced-homophonic'):
         symbols=46; mapping=list(range(symbols)); rng.shuffle(mapping)
         ciphertext=[mapping[2*ALPHABET.index(c)+rng.randrange(2)] for c in plain]
     else:raise ValueError(encoding)
@@ -21,7 +21,7 @@ def job_for(plain,seed,encoding,algorithm,iterations,start):
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--starts',type=int,default=8);parser.add_argument('--iterations',type=int,default=10000);parser.add_argument('--length',type=int,default=1000);parser.add_argument('--languages',default='latin,italian');opt=parser.parse_args()
     cache=ROOT/'data/recovery'; manifest=json.loads((cache/'manifest.json').read_text());results=[]
-    out=ROOT/'research/recovery/development-results.jsonl'
+    out=ROOT/'research/recovery/development-balanced-results.jsonl'
     for lang in opt.languages.split(','):
         train=next(x for x in manifest if x['language']==lang and x['split']=='training')
         dev=next(x for x in manifest if x['language']==lang and x['split']=='development')
@@ -29,7 +29,7 @@ def main():
         subprocess.run([str(cli()),'train','--input',str(cache/f"{train['id']}.normalized.txt"),'--source',train['normalized_sha256'],'--out',str(model)],check=True)
         text=(cache/f"{dev['id']}.normalized.txt").read_text();plain=text[5000:5000+opt.length]
         with subprocess.Popen([str(cli()),'batch','--model',str(model)],stdin=subprocess.PIPE,stdout=subprocess.PIPE,text=True,encoding='utf-8',bufsize=1) as p:
-            for encoding in ['substitution','homophonic']:
+            for encoding in ['substitution','balanced-homophonic']:
                 for algorithm in ['beam-v1','restart-anneal-v1']:
                     # Beam has no random restarts; record one baseline and state
                     # that repeated identical deterministic searches add nothing.

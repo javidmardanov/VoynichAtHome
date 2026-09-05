@@ -16,3 +16,4 @@ build/
 .dev.vars
 test-results/
 playwright-report/
+/platform/.openai/

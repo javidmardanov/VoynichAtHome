@@ -1,0 +1,8 @@
+{
+  "id": "search-bb97c22104f5f056",
+  "digest": "sha256:bb97c22104f5f056fa88da4221a5c858369ce741cfcb876e28c404c285c5c00a",
+  "url": "/kernels/bb97c22104f5f056fa88da4221a5c858369ce741cfcb876e28c404c285c5c00a.wasm",
+  "abi": "vah-search-cabi-1",
+  "max_memory_bytes": 100663296,
+  "imports": []
+}

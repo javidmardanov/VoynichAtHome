@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `teams_owner_id_unique` ON `teams` (`owner_id`);

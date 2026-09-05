@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "vah-submission-1"
+    },
+    "attempt_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+    },
+    "unit_id": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "result": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    }
+  },
+  "required": [
+    "version",
+    "attempt_id",
+    "unit_id",
+    "result"
+  ],
+  "additionalProperties": false,
+  "$id": "urn:voynich:contracts:v1:submission",
+  "x-semantic-validation": "See platform/src/lib/contracts.ts and the Rust kernel; schema alone does not establish valid identities, scores, or execution."
+}

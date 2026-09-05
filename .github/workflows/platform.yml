@@ -1,0 +1,47 @@
+name: platform and search contracts
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  platform:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npx --yes npm@11.19.1 ci
+      - name: Build the pinned native search
+        working-directory: kernel
+        run: cargo build --locked --release -p vah-search
+      - name: Build the bounded WebAssembly module
+        working-directory: kernel
+        env:
+          RUSTFLAGS: '-C link-arg=--max-memory=100663296'
+        run: cargo build --locked --release --target wasm32-unknown-unknown -p vah-search-wasm
+      - run: npm run kernel:package --workspace platform
+      - run: npm run check
+      - run: npm test
+      - run: npm audit --audit-level=low
+      - name: Verify generated schemas
+        working-directory: platform
+        run: node scripts/run-ts.mjs scripts/export-contracts.ts
+      - run: git diff --exit-code -- contracts/v1
+      - run: npm run build
+      - run: npm run package:worker --workspace platform
+      - name: Install browser engines
+        if: runner.os == 'Linux'
+        working-directory: platform
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Exercise the actual Worker in three browser engines
+        if: runner.os == 'Linux'
+        working-directory: platform
+        run: npx playwright test
