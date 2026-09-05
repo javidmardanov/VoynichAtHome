@@ -1,7 +1,8 @@
 import { beforeEach, afterEach, expect, test } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFile, readdir } from 'node:fs/promises';
-import { createGuest, guestFromToken, lease, submit, validateUnit, contributions, claimGuest, now, rate } from '../src/lib/server/coordinator';
+import { createGuest, guestFromToken, lease, submit, validateUnit, contributions, claimGuest, now, rate, reserveWindow, maintain, addCampaign, addUnit, MAX_INPUT_STORAGE } from '../src/lib/server/coordinator';
+import { ownerAction } from '../src/lib/server/owner';
 import { identity } from '../src/lib/contracts';
 import { createAuth } from '../src/lib/server/auth';
 import { saveProfile, changeTeam, directory } from '../src/lib/server/community';
@@ -149,4 +150,62 @@ test('restoration is atomic, revokes sessions, and reapplies deletion tombstones
   expect((await env.DB.prepare('SELECT user_id,token_hash FROM guests WHERE id=?').bind(g.id).first())).toEqual({user_id:null,token_hash:null});
   expect((await env.DB.prepare('SELECT stopped FROM controls').first())?.stopped).toBe(1);
   expect((await directory(env)).people).toHaveLength(0);
+});
+
+test('unfinished validation reserves carry across months once, and every replay retry is funded',async()=>{
+  await addUnits(1);const g=await guest(),w=await work(g);await submit(env,g,body(w));
+  await env.DB.batch([env.DB.prepare("UPDATE units SET reserved_window='1900-01'"),env.DB.prepare('UPDATE limits SET reserved_ms=0,max_reserved_ms=100')]);
+  await Promise.all([reserveWindow(env.DB),reserveWindow(env.DB),reserveWindow(env.DB)]);
+  expect((await env.DB.prepare('SELECT reserved_ms FROM limits').first())?.reserved_ms).toBe(100);
+  await validateUnit(env,w.unit_id,async()=>{throw Error('Interrupted replay');});
+  await env.DB.prepare("UPDATE units SET state='open'").run();
+  await validateUnit(env,w.unit_id,async()=>{throw Error('Unfunded retry must never execute');});
+  expect((await env.DB.prepare('SELECT validation_runs FROM units').first())?.validation_runs).toBe(1);
+  await env.DB.prepare("UPDATE units SET state='open'").run();
+  await env.DB.prepare('UPDATE limits SET max_reserved_ms=200').run();let runs=0;
+  await Promise.all([validateUnit(env,w.unit_id,async()=>{runs++;return output;}),validateUnit(env,w.unit_id,async()=>{runs++;return output;})]);
+  expect(runs).toBe(1);
+  expect((await env.DB.prepare('SELECT reserved_ms FROM limits').first())?.reserved_ms).toBe(200);
+  expect((await env.DB.prepare('SELECT validation_runs FROM units').first())?.validation_runs).toBe(2);
+  expect((await contributions(env.DB,g,null)).credit).toBe(7);
+});
+
+test('traffic reserve stops new work while already issued results can still be checked',async()=>{
+  await addUnits(2);const g=await guest(),w=await work(g);
+  await env.DB.prepare('UPDATE limits SET requests=max_requests-1999').run();
+  expect((await lease(env,await guest())).state).toBe('waiting');
+  await submit(env,g,body(w));await validateUnit(env,w.unit_id,async()=>output);
+  expect((await contributions(env.DB,g,null)).credit).toBe(7);
+});
+
+test('exhausted deliveries require an audited extension and keep old attempts intact',async()=>{
+  await addUnits(1);
+  for(let i=0;i<6;i++){await work(await guest());await env.DB.prepare('UPDATE attempts SET expires_at=0').run();}
+  await maintain(env,async()=>{throw Error('No submitted work to check');});
+  const unit=await env.DB.prepare('SELECT id,state FROM units').first<{id:string;state:string}>();expect(unit?.state).toBe('delivery_exhausted');
+  await env.DB.prepare("INSERT INTO user (id,name,email,created_at,updated_at) VALUES ('owner','Owner','owner@example.test',?,?)").bind(Date.now(),Date.now()).run();
+  await ownerAction(env,'owner',{action:'extend-delivery',id:unit!.id,reason:'Reviewed six expired delivery attempts.'});
+  await work(await guest());expect((await env.DB.prepare('SELECT COUNT(*) n FROM attempts').first())?.n).toBe(7);
+  expect((await env.DB.prepare("SELECT action FROM audit WHERE action='extend-delivery'").first())?.action).toBe('extend-delivery');
+});
+
+test('input storage is reserved before R2 writes and an interrupted import retries safely',async()=>{
+  const base=JSON.parse(await readFile('tests/fixtures/search-job.json','utf8'));
+  const campaign=await addCampaign(env,{version:'vah-campaign-1',id:'imports',title:'Import test campaign',question:'Does interrupted import preserve identity?',kind:'recovery',protocol_url:'https://example.test/protocol',source_digests:base.model.training_sources,methods:[base.algorithm],metric:'Exact replay',comparisons:['Native output'],stopping_rule:'Two bounded work units only.',exposure:'Public operational fixture only.',recovery_evidence:[],max_units:2,interpretation:'Operational evidence with no scientific inference.'});
+  function pair(start:number){const job={...base,experiment:campaign.digest,start};return identity(job).then(digest=>({job,work:{version:'vah-work-1',type:'search',experiment_digest:campaign.digest,input_digest:digest,algorithm:job.algorithm,numeric_profile:'integer-ngram-libm-v1',release_id:'test',seed:job.seed,start,budget:{evaluations:job.iterations,max_input_bytes:8000000,max_memory_bytes:100663296},work_estimate:4096}}));}
+  const first=await pair(0),bucket=env.RESEARCH;
+  env.RESEARCH=new Proxy(bucket,{get(target,key){if(key==='put')return ()=>Promise.reject(Error('R2 unavailable'));const value=Reflect.get(target,key,target);return typeof value==='function'?value.bind(target):value;}});
+  await expect(addUnit(env,campaign.id,first.work,first.job,100)).rejects.toThrow('R2 unavailable');
+  expect((await env.DB.prepare("SELECT state FROM units WHERE campaign_id='imports'").first())?.state).toBe('importing');
+  env.RESEARCH=bucket;
+  await addUnit(env,campaign.id,first.work,first.job,100);
+  expect((await env.DB.prepare("SELECT state FROM units WHERE campaign_id='imports'").first())?.state).toBe('open');
+  const second=await pair(1);
+  await env.DB.prepare("UPDATE units SET input_bytes=? WHERE campaign_id='imports'").bind(MAX_INPUT_STORAGE).run();
+  await expect(addUnit(env,campaign.id,second.work,second.job,100)).rejects.toThrow('Storage reserve');
+  expect((await env.RESEARCH.list({prefix:'inputs/'})).objects).toHaveLength(1);
+  await env.DB.prepare("UPDATE units SET input_bytes=2000000 WHERE campaign_id='imports'").run();
+  const third=await pair(2);
+  const raced=await Promise.allSettled([addUnit(env,campaign.id,second.work,second.job,100),addUnit(env,campaign.id,third.work,third.job,100)]);
+  expect(raced.filter(r=>r.status==='fulfilled')).toHaveLength(1);expect((await env.RESEARCH.list({prefix:'inputs/'})).objects).toHaveLength(2);
 });

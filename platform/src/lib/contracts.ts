@@ -6,7 +6,7 @@ export const Work = z.object({
   version: z.literal('vah-work-1'), type: z.enum(['generation','search','verification']), experiment_digest: Digest,
   input_digest: Digest, algorithm: Identifier, numeric_profile: z.enum(['wasm32-ieee754-libm-scalar-v1','integer-ngram-libm-v1']),
   release_id: Identifier, seed: z.number().int().min(0).max(4294967295), start: z.number().int().min(0).max(4294967295), budget: Budget,
-  work_estimate: z.number().int().min(1).max(1000000)
+  work_estimate: z.number().int().min(1).max(2000000)
 }).strict();
 export type Work = z.infer<typeof Work>;
 export const SearchJob = z.object({
@@ -23,6 +23,17 @@ export const SearchJob = z.object({
     || (job.encoding==='balanced-homophonic' && job.symbol_count%23!==0)) ctx.addIssue({code:'custom',message:'Encoding and symbol domain disagree.'});
 });
 export type SearchJob = z.infer<typeof SearchJob>;
+export const SearchResult = z.object({version:z.literal('vah-search-result-1'),job_digest:Digest,algorithm:z.enum(['beam-v1','restart-anneal-v1']),
+  key:z.array(z.number().int().min(0).max(22)).min(2).max(92),plaintext:z.string().min(4).max(20000).regex(/^[abcdefghilmnopqrstuvxyz]+$/),
+  score:z.number().int().min(-20000000000).max(0),evaluations:z.number().int().min(0).max(100000),trace:z.array(Digest).max(1000),result_digest:Digest}).strict();
+export const Release = z.object({id:Identifier,digest:Digest,url:z.string().regex(/^\/kernels\/[0-9a-f]{64}\.wasm$/)}).strict();
+export const Lease = z.object({state:z.literal('work'),version:z.literal('vah-lease-1'),attempt_id:Identifier,unit_id:Digest,expires_at:z.number().int().nonnegative(),work:Work,
+  input_url:z.string().regex(/^\/api\/v1\/work\/[a-zA-Z0-9_-]+$/),release:Release}).strict();
+export const Reproduction = z.object({version:z.literal('vah-reproduction-1'),unit_id:Digest,work:Work,job:SearchJob,result:SearchResult.nullable(),result_hash:Digest.nullable(),
+  state:z.enum(['importing','open','checking','validation_error','delivery_exhausted','complete']),release:Release.extend({state:z.enum(['approved','revoked'])})}).strict();
+export const PublicName=z.string().trim().min(2).max(48).regex(/^[\p{L}\p{N} ._'’-]+$/u,'Use letters, numbers, spaces, or simple punctuation.');
+export const ProfileUpdate=z.object({display_name:PublicName,public:z.boolean()}).strict();
+export const TeamUpdate=z.union([z.object({create:PublicName}).strict(),z.object({join:z.string().uuid()}).strict(),z.object({leave:z.literal(true)}).strict()]);
 export function validateSearchWork(work: Work, input: unknown) {
   const job=SearchJob.parse(input);
   if (work.type!=='search' || work.numeric_profile!=='integer-ngram-libm-v1' || work.algorithm!==job.algorithm

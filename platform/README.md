@@ -27,6 +27,16 @@ npx wrangler dev --config wrangler.deploy.jsonc --port 8787 --ip 127.0.0.1 --var
 
 This imports 16 synthetic operational work units into local D1/R2 and creates the native/WASM parity fixture. It never selects remote bindings. It is not a concealed scientific study. Pause or Stop in the browser terminates its worker; saved checkpoints and results live in IndexedDB. Reload never starts computation automatically.
 
+The automated browser suite uses its own ephemeral Worker, D1/R2, and signed fixture sessions. It does not need source downloads or OAuth applications. Build and package the Worker and CLI first, then run `npm run test:browser --workspace platform` and `npm run test:load --workspace platform`. The load test runs 25 actual computing clients and five waiting clients on one local browser host. It is not deployed-load evidence. Never publish test session-cookie files; CI retains only the explicit non-secret report files.
+
+## Command-line participation and reproduction
+
+From platform/, run `npm run volunteer -- --server https://PROJECT --max-units 1`. The transport uses the same versioned work contract, checks approved release and input digests, and executes the local Rust search. Default intensity is 25%, one native process. Ctrl+C stops it. The private .voynich-worker directory retains the last checkpoint or unsent result; restart with the same server and directory to retry. A worker exits when no campaign is available. Do not share its guest proof.
+
+Run `npm run reproduce -- --server https://PROJECT --campaign ID --out ./campaign` to download a campaign, exact work inputs, checked outputs, and the module. Then `npm run reproduce -- --offline --out ./campaign` replays from that manifest without the coordinator. It checks every file and scientific identity and compares complete native output, including traces. Pending results remain labeled pending. Exact replay is evidence about execution, not a decipherment.
+
+`npm run package:cli` produces standalone Node entrypoints, the native executable, WASM, module metadata, and dependency license notices in platform/dist/cli. Cargo must be on PATH so packaging can gather the actual dependency graph and license texts. The packaged commands are `node volunteer.mjs ...` and `node reproduce.mjs ...`; Node 22.13+ remains required.
+
 ## Authentication and recognition
 
 Better Auth uses Google/GitHub when their credentials and an authentication secret are configured. No provider buttons are shown otherwise. There is no owner bypass password or fabricated sign-in. Set `OWNER_USER_ID` to the real Better Auth user ID after the owner signs in. Profile visibility is explicit opt-in. Guest attachment proves a current HttpOnly cookie and changes a reference; it never copies credit.
@@ -38,6 +48,12 @@ Checked credit uses `ceil(iterations * ciphertext_symbols / 1000)` for the curre
 `worker.ts` wraps the SvelteKit Worker with a statically imported, digest-identified WASM module. Its scheduled handler resumes pending checks and makes daily private R2 backups with 30-day retention. A direct Cloudflare deployment uses `wrangler.deploy.jsonc`; replace local resource IDs with the owner's actual bindings before deployment. Confirm that the chosen hosting environment provisions the scheduled trigger; exporting a handler alone does not schedule it.
 
 Owner operations are strict JSON requests to `/api/v1/owner` and are available in the owner page. Work imports accept only the kernel in the current deployment. Revoking a release blocks assignments and credit for it. Older unverified work requires restoring its compatible verifier; it must not silently run under a different release.
+
+New months start closed until an owner supplies a budget; existing checking obligations carry forward. Extra replay attempts require a fresh reserve. The initial application reserve is at most 1,000,000 ms per month and 25 simultaneous leases. The default traffic allowance is 20,000 coordinator requests; new assignments stop with 2,000 requests reserved for finishing work. Incoming traffic and other provider charges are not capped by these counters.
+
+Input imports reserve up to 128 MB in aggregate before writing R2, conservatively counting duplicate payloads. An interrupted import remains in the importing state; repeat the identical operation to finish it. A campaign cannot open while an import is incomplete. Existing rows from before the storage migration reserve the full 8 MB bound conservatively until reconciled by the operator.
+
+After six failed/expired deliveries, maintenance marks the unit delivery_exhausted. An owner may apply `{"action":"extend-delivery","id":"sha256:...","reason":"Reviewed the expired attempts and operating cause."}` to allow two additional deliveries, up to twenty total. This preserves old attempts and scientific identity. Validation retries remain operational events and require reserve capacity.
 
 Backups are private and contain account data. Restoration requires the environment assignment switch disabled, the operator switch stopped, and a maintenance/staging/development stage. It checks schema and content digests, uses one atomic database batch, replays deletion tombstones, invalidates authentication and guest sessions, expires old leases, and leaves assignments stopped. The bounded backup path rejects databases too large for its memory/query limits; use provider exports for larger deployments.
 

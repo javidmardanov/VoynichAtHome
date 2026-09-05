@@ -1,12 +1,6 @@
 # Security policy
 
-There is no deployed coordinator, volunteer client, or public workload in this
-foundation branch. Please use GitHub's private security-advisory mechanism for a
-vulnerability in the contract validator, benchmark worker, workflow, or proposed
-release design; do not place exploit details in a public issue before maintainers
-can assess them.
+Use [GitHub private vulnerability reporting](https://github.com/javidmardanov/VoynichAtHome/security/advisories/new) for a vulnerability in the coordinator, clients, kernel, accounts, dependencies, or release process. Private reporting is enabled. Avoid public exploit details while the owner assesses a report. No response-time guarantee is currently advertised.
 
 The full threat model, volunteer protections, release chain, privacy policy, and
-incident requirements are in [docs/SECURITY.md](docs/SECURITY.md). A future
-deployment must publish supported versions, response targets, and a dedicated
-security contact before invitation testing.
+incident procedures are in [docs/SECURITY.md](docs/SECURITY.md). Development follows the integration branch and [release status](docs/RELEASE-STATUS.md). There is no supported production release yet; tagged releases will declare their support status and verification instructions.

@@ -1,25 +1,19 @@
-# Contributing to the proposal
+# Contributing to Voynich@home
 
-This branch is a foundation proposal, not an open queue for claimed translations
-or public volunteer workloads.
+Start with the [current design](docs/DESIGN.md), [release status](docs/RELEASE-STATUS.md), and [platform setup](platform/README.md). Original contributions use the repository's MIT license; preserve third-party terms and attribution.
 
-Useful contributions include reproducible corpus-concordance corrections,
-contract tests, known-answer benchmark generators, adversarial controls,
-published-result reproductions, threat-model challenges, and evidence-backed
-alternatives to proposed decisions.
+Useful work includes source-work and normalization review for Latin/Italian, bounded search improvements, equal-budget negative controls, reproduction of published records, browser resource and accessibility checks, and operational rehearsals. The [experiment proposal form](https://github.com/javidmardanov/VoynichAtHome/issues/new?template=experiment-proposal.yml) requests a concrete question, sources, controls, limits, and stopping rule.
 
-Please:
+## Development
 
-1. Use the neutral terms in `CONTEXT.md`.
-2. State the observation, hypothesis, falsifier, data/version, controls, and
-   expected failure behavior.
-3. Never attach manuscript scans, fonts, dictionaries, or corpora without a
-   source, digest, attribution, and rights review.
-4. Include negative outcomes and all analysis forks that informed the change.
-5. Keep toy fixtures clearly separate from scientific evidence.
-6. Do not submit executable code intended for volunteer hosts until the release
-   and security governance exists.
+Use the pinned Rust toolchain, Node 22.13+, and npm 11.19.1. Install with npm ci using that npm version at the repository root. Build the native search in kernel/ with cargo build --release --locked -p vah-search. Follow platform/README.md for the browser application and packaged Worker.
 
-The repository owner should establish explicit licenses and contributor terms
-before accepting substantive external contributions. See
-`docs/LICENSING.md`.
+Run relevant checks for a change: Rust formatting, clippy, and workspace tests for kernel changes; npm run check and npm test for platform contracts and operations; the browser suite for interface changes. Do not regenerate golden answers simply to make a regression pass. Work identities and older kernel fixtures require explicit compatibility.
+
+## Research changes
+
+State the observation, proposed explanation, falsifier, source versions, previous exposure, metrics, controls, and failure interpretation. Keep original messages and encoding keys out of search inputs. Report all runs and failures, preserve unchanged decoder output, and distinguish development fixtures from concealed evaluation.
+
+Add source, checksum, attribution, and rights records before importing text, scans, fonts, or code. Do not upload arbitrary executable workloads to volunteers. New worker types require reviewed source, bounded resource behavior, and a release.
+
+Open a focused pull request explaining resulting behavior and relevant validation. The human owner reviews release decisions. Independent scientific review is welcome, but is only claimed when actual evidence is linked. Security reports use the process in [SECURITY.md](SECURITY.md).

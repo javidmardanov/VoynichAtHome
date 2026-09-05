@@ -53,6 +53,8 @@ export const units = sqliteTable('units', {
   id: text('id').primaryKey(), campaignId: text('campaign_id').notNull().references(() => campaigns.id), releaseId: text('release_id').notNull().references(() => releases.id),
   specification: text('specification').notNull(), inputDigest: text('input_digest').notNull(), inputKey: text('input_key').notNull(),
   state: text('state').notNull().default('open'), credit: integer('credit').notNull(), reserveMs: integer('reserve_ms').notNull(), reserved: integer('reserved').notNull().default(0),
+  reservedWindow: text('reserved_window'), inputBytes: integer('input_bytes').notNull().default(8000000),
+  attemptLimit: integer('attempt_limit').notNull().default(6), validationRuns: integer('validation_runs').notNull().default(0), replayWallMs: integer('replay_wall_ms').notNull().default(0),
   trustedResult: text('trusted_result'), trustedHash: text('trusted_hash'), checkingUntil: integer('checking_until'), validationError: text('validation_error'), createdAt: integer('created_at').notNull()
 }, t => [index('units_campaign_state_idx').on(t.campaignId, t.state)]);
 export const attempts = sqliteTable('attempts', {
@@ -66,6 +68,7 @@ export const credit = sqliteTable('credit', {
 }, t => [uniqueIndex('credit_unit_guest_idx').on(t.unitId,t.guestId), index('credit_guest_idx').on(t.guestId)]);
 export const limits = sqliteTable('limits', {
   window: text('window').primaryKey(), assignments: integer('assignments').notNull().default(0), reservedMs: integer('reserved_ms').notNull().default(0),
+  requests: integer('requests').notNull().default(0), maxRequests: integer('max_requests').notNull().default(20000),
   maxAssignments: integer('max_assignments').notNull(), maxReservedMs: integer('max_reserved_ms').notNull(), maxInflight: integer('max_inflight').notNull()
 });
 export const controls = sqliteTable('controls', { id: text('id').primaryKey(), stopped: integer('stopped').notNull().default(1), reason: text('reason').notNull(), updatedAt: integer('updated_at').notNull() });

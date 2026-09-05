@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { ZodError } from 'zod';
-import { ApiError, createGuest, guestFromToken, lease, readInput, submit, validateUnit, status, contributions, claimGuest, rate, maintain } from '$lib/server/coordinator';
+import { ApiError, createGuest, guestFromToken, lease, readInput, submit, validateUnit, status, contributions, claimGuest, rate, maintain, recordRequest } from '$lib/server/coordinator';
 import { configuredProviders } from '$lib/server/auth';
 import { profile, saveProfile, directory, changeTeam } from '$lib/server/community';
 import { ownerAction } from '$lib/server/owner';
@@ -20,6 +20,7 @@ const handler:RequestHandler=async(event)=>{
   try{
     if(!platform?.env?.DB)throw new ApiError(503,'Coordinator storage is unavailable.');
     const env=platform.env,path=params.path??'',mutating=request.method!=='GET';
+    await recordRequest(env.DB);
     if(mutating && request.headers.get('origin')!==url.origin)throw new ApiError(403,'This action requires the site’s origin.');
     const token=request.headers.get('authorization')?.replace(/^Bearer /,'')??cookies.get('vah_guest');
     let guest=await guestFromToken(env.DB,token);
@@ -56,14 +57,15 @@ const handler:RequestHandler=async(event)=>{
     if(path==='owner'&&!mutating){if(!locals.owner)throw new ApiError(403,'Owner access required.');
       const [campaigns,releases,errors,audit]=await Promise.all([
         env.DB.prepare('SELECT * FROM campaigns ORDER BY created_at DESC LIMIT 50').all(),env.DB.prepare('SELECT * FROM releases ORDER BY created_at DESC LIMIT 20').all(),
-        env.DB.prepare("SELECT id,campaign_id,validation_error FROM units WHERE state='validation_error' LIMIT 100").all(),env.DB.prepare('SELECT * FROM audit ORDER BY created_at DESC LIMIT 100').all()]);
+        env.DB.prepare("SELECT id,campaign_id,state,validation_error FROM units WHERE state IN ('validation_error','delivery_exhausted','importing') LIMIT 100").all(),env.DB.prepare('SELECT * FROM audit ORDER BY created_at DESC LIMIT 100').all()]);
       return json({campaigns:campaigns.results,releases:releases.results,errors:errors.results,audit:audit.results});}
     if(path.startsWith('records/')&&!mutating){
       const record=await env.DB.prepare(`SELECT u.id,u.specification,u.input_key,u.trusted_result,u.trusted_hash,u.state,r.module_digest,r.module_path,r.state AS release_state
         FROM units u JOIN campaigns c ON c.id=u.campaign_id JOIN releases r ON r.id=u.release_id WHERE u.id=? AND c.status<>'draft'`).bind(decodeURIComponent(path.slice(8))).first<{id:string;specification:string;input_key:string;trusted_result:string|null;trusted_hash:string|null;state:string;module_digest:string;module_path:string;release_state:string}>();
       if(!record)throw new ApiError(404,'Published record not found.');
       const object=await env.RESEARCH.get(record.input_key);if(!object||object.size>8000000)throw new ApiError(503,'Research input unavailable.');
-      return json({version:'vah-reproduction-1',unit_id:record.id,work:JSON.parse(record.specification),job:JSON.parse(await object.text()),result:record.trusted_result?JSON.parse(record.trusted_result):null,result_hash:record.trusted_hash,state:record.state,release:{digest:record.module_digest,url:record.module_path,state:record.release_state}});
+      const work=JSON.parse(record.specification);
+      return json({version:'vah-reproduction-1',unit_id:record.id,work,job:JSON.parse(await object.text()),result:record.trusted_result?JSON.parse(record.trusted_result):null,result_hash:record.trusted_hash,state:record.state,release:{id:work.release_id,digest:record.module_digest,url:record.module_path,state:record.release_state}});
     }
     if(path.startsWith('campaigns/')&&!mutating){
       const campaign=await env.DB.prepare("SELECT * FROM campaigns WHERE id=? AND status<>'draft'").bind(path.slice(10)).first();

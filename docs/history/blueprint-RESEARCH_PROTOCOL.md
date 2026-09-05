@@ -4,8 +4,6 @@ This protocol turns large computational searches into bounded scientific tests.
 It applies equally to human-proposed, machine-proposed, linguistic,
 cryptographic, and non-linguistic hypotheses.
 
-The initial scope and current arrangements are in [DESIGN.md](DESIGN.md) and [GOVERNANCE.md](GOVERNANCE.md). The original broader proposal is preserved in [history](history/blueprint-RESEARCH_PROTOCOL.md). Review and confirmation requirements below describe evidence needed for the corresponding scientific claim; they do not assert that such review has already occurred.
-
 ## 1. Observation before interpretation
 
 An experiment must declare four independent policies:
@@ -93,8 +91,6 @@ secret or wholly unseen to a proposer. Reports must distinguish an
 **analysis-held-out** partition from a truly **sequestered known-answer**
 benchmark whose keys and generators were unavailable during development.
 
-Earlier work in this repository used the whole manuscript during method development. New splits cannot undo that exposure. Existing manuscript results are exploratory. The initial Latin/Italian recovery program separates training, development, and final evaluation by source work and keeps original messages and keys outside solver inputs. Because the same project administers both sides, those final cases are concealed from the program, not independently administered.
-
 Generalization claims need the matching stress test. A model described as
 independent of section, hand attribution, Currier stratum, or transcription must
 be evaluated with that entire grouping held out, not merely represented in all
@@ -121,8 +117,6 @@ Voynich score looks favorable.
 
 The experiment ledger is the denominator. It records all attempted parameter
 sets and analysis variants, not only leaderboard entries.
-
-Record every search run's configuration, seed, budget, result, and validation status. Deterministic checkpoints and traces support intermediate reproduction. A search step is not automatically a distinct scientific hypothesis. Calibration must reflect the selection procedure, previous exposure, and registered comparison family. See [the acceptance-rule review](research/acceptance-rule-review.md) for the corrected generator-testing assumptions; Rule C does not supply a general 1% error guarantee.
 
 - Confirmatory families control family-wise error using a registered method such
   as Holm adjustment or a dependence-aware max-statistic permutation procedure.
@@ -159,7 +153,8 @@ predictions that were frozen before confirmation.
 
 Work-unit validation and scientific replication are different:
 
-- **Execution validation** checks candidate rules, scores, and complete replay against the approved kernel. Duplicate submissions add a comparison; guest identifiers cannot establish host independence.
+- **Execution validation** asks whether independent hosts produced equivalent
+  outputs from identical inputs and worker artifacts.
 - **Pipeline reproduction** asks whether a clean environment rebuilds the
   published result from the reproduction bundle.
 - **Scientific replication** asks whether an independent team, ideally using an
@@ -179,9 +174,11 @@ The portal labels evidence by the highest gate actually passed:
 
 | Tier | Permitted description | Minimum evidence |
 | --- | --- | --- |
-| Computation | Completed, checked work or reproduced measurement | Declared inputs, algorithm, budget, numeric rules, and trusted replay; all failures retained |
-| Candidate | Promising mechanism or reading under declared assumptions | Actual mapping and unchanged output; substantial coverage; exceptions; useful recovery range; registered controls; independent reproduction and specialist scrutiny before advancement |
-| Supported conclusion | A bounded scientific conclusion supported by the cited evidence | Appropriate calibration and comparisons, independent reproduction, relevant specialist evidence, and explicit limits; no automatic decipherment badge |
+| 0 | Reproduced measurement | Corpus/version declared; implementation and descriptive statistic reproduced |
+| 1 | Registered association | Primary test passes correction and controls on grouped validation data |
+| 2 | Replicated mechanism candidate | Tier 1 plus sequestered known-answer calibration and independent pipeline replication |
+| 3 | Candidate interpretation | Reversible algorithm, substantial coverage, one-shot grouped confirmation, bounded exceptions, predictive semantic tests, and alternative transcription checks |
+| 4 | Corroborated decipherment | Independent end-to-end replication plus convergent expert evidence outside the fitted computation |
 
 “Solved” is not an internal tier or a badge awarded by compute volume. It is a
 community conclusion that would require evidence beyond this platform.
@@ -213,12 +210,16 @@ the same search and to make the multiplicity ledger credible.
 Benchmark v1 should contain only data whose answers and redistribution terms can
 be managed responsibly:
 
-1. Latin and Italian source works, separated into training, development, and final evaluation. These languages are practical benchmark choices, not claims about the manuscript's language.
-2. Ordinary substitution, homophonic substitution, and documented verbose encodings beginning with Naibbe. Keep the published construction distinct from key-randomized extensions and preserve restrictions against ambiguous output.
-3. Beam search and independent-start key improvement with fixed character-sequence models; no rewriting output into fluent prose.
-4. Messages of 1,000, 5,000, and 20,000 normalized characters; budgets of 1, 8, and 64 starts; shuffled and generated comparisons under the same budgets.
-5. A small development panel, followed by frozen settings and 100 new message/key cases per reported condition. Publish every outcome, alternative valid reading, elapsed time, memory measurement, and the benefit or lack of benefit from additional starts.
-6. Answers outside the search program's inputs. Record who controlled the test cases. The current project does not have an independent benchmark custodian.
+1. Latin, Middle High German, Middle French, Italian, and other justified
+   historical samples with provenance and genre labels.
+2. Monoalphabetic, homophonic, nomenclator-like, null-bearing, transposition,
+   multi-symbol, and stateful synthetic transformations with recorded keys.
+3. Layout and transcription noise models derived without using confirmation
+   targets.
+4. Procedural generators capable of matching superficial Voynich statistics.
+5. Decoys that share marginals but destroy registered dependencies.
+6. Sequestered seeds, keys, and generator labels controlled by a benchmark
+   custodian who is not a pipeline implementer.
 
 Passing v1 demonstrates calibration only for those workload families. It is not
 evidence that the manuscript belongs to one of them.

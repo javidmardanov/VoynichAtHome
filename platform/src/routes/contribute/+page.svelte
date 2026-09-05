@@ -6,15 +6,16 @@
   let ready=$state(false),supported=$state(true), running=$state(false), message=$state('Ready when you are.'), error=$state('');
   let intensity=$state(25),pauseHidden=$state(true),progress=$state(0),checked=$state(0),credit=$state(0),pending=$state(0);
   let status=$state<any>(null), worker:Worker|null=null,current:LocalWork|null=null,intent=false,autoResume=false,timer:ReturnType<typeof setTimeout>|null=null,epoch=0;
+  let requests:AbortController|null=null;
   async function totals(){try{const me=await api('me');checked=me.contributions.checked;credit=me.contributions.credit;pending=me.contributions.pending;}catch{/* Keep last known totals during loss of network. */}}
-  function halt(text:string){epoch++;intent=false;worker?.terminate();worker=null;if(timer)clearTimeout(timer);timer=null;running=false;message=text;}
+  function halt(text:string){epoch++;intent=false;requests?.abort();worker?.terminate();worker=null;if(timer)clearTimeout(timer);timer=null;running=false;message=text;}
   function stop(){autoResume=false;halt('Stopped. Your last checkpoint is saved.');}
   function pause(){autoResume=false;halt('Paused. You can resume from your last checkpoint.');}
   async function start(){
-    if(running)return;error='';intent=true;running=true;message='Checking for work…';const turn=++epoch;
+    if(running)return;error='';intent=true;running=true;requests=new AbortController();message='Checking for work…';const turn=++epoch;
     try{
       current=await localWork();if(turn!==epoch)return;
-      await api('guest',{});if(turn!==epoch)return;
+      await api('guest',{},requests.signal);if(turn!==epoch)return;
       await cycle(turn);
     }catch(e){if(turn!==epoch)return;halt('Paused. Your saved work is safe to retry.');error=e instanceof Error?e.message:'Unable to start.';}
   }
@@ -23,24 +24,24 @@
     if(pauseHidden&&document.hidden){autoResume=true;halt('Paused while this tab is hidden.');return;}
     if(current?.result){
       message='Sending the saved result for checking…';
-      try{await api('results',{version:'vah-submission-1',attempt_id:current.lease.attempt_id,unit_id:current.lease.unit_id,result:current.result});}
+      try{await api('results',{version:'vah-submission-1',attempt_id:current.lease.attempt_id,unit_id:current.lease.unit_id,result:current.result},requests?.signal);}
       catch(e){throw Error((e instanceof Error?e.message:'Submission failed.')+' The result is retained in this browser.');}
       await localWork(null);current=null;await totals();if(turn!==epoch)return;
     }
-    const operating=await api('status');status=operating;if(turn!==epoch)return;
+    const operating=await api('status',undefined,requests?.signal);status=operating;if(turn!==epoch)return;
     if(!operating.assignments_enabled){halt('No work is currently available. Your saved checkpoint is retained.');return;}
     if(!current){
-      const lease=await api('work',{});if(turn!==epoch)return;
+      const lease=await api('work',{},requests?.signal);if(turn!==epoch)return;
       if(lease.state!=='work'){
         message=lease.message;
         if(lease.state==='idle'){halt(lease.message);return;}
         timer=setTimeout(()=>cycle(turn).catch(failed),Math.max(30,lease.retry_after_seconds)*1000);return;
       }
-      const response=await fetch(lease.input_url);const job=await response.json();if(!response.ok)throw Error(job.error??'Input unavailable.');if(turn!==epoch)return;
+      const response=await fetch(lease.input_url,{signal:requests?.signal});const job=await response.json();if(!response.ok)throw Error(job.error??'Input unavailable.');if(turn!==epoch)return;
       current={lease,job,checkpoint:null,result:null};await localWork(current);
     }else{
       // A revoked module must not restart from a previously cached checkpoint.
-      const response=await fetch(current.lease.input_url);if(!response.ok)throw Error('Saved work is unavailable or its release has been revoked.');
+      const response=await fetch(current.lease.input_url,{signal:requests?.signal});if(!response.ok)throw Error('Saved work is unavailable or its release has been revoked.');
     }
     if(turn!==epoch)return;
     worker=new ComputeWorker();message='Computing one bounded search.';

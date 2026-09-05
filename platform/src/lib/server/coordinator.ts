@@ -7,6 +7,21 @@ export type Unit = { id: string; campaign_id: string; release_id: string; specif
 export type Runner = (input: Record<string, unknown>, releaseId: string) => Promise<Record<string, unknown>>;
 export const now = () => Math.floor(Date.now() / 1000);
 export const id = () => crypto.randomUUID();
+export const month = () => new Date().toISOString().slice(0,7);
+export const MAX_INPUT_STORAGE = 128000000;
+/** Carry obligations forward atomically. A new month starts closed until the owner funds it. */
+export async function reserveWindow(db:D1Database) {
+  const window=month();
+  await db.batch([
+    db.prepare('INSERT OR IGNORE INTO limits (window,max_assignments,max_reserved_ms,max_inflight) VALUES (?,0,0,25)').bind(window),
+    db.prepare(`UPDATE limits SET reserved_ms=reserved_ms+COALESCE((SELECT SUM(reserve_ms) FROM units
+      WHERE reserved=1 AND trusted_hash IS NULL AND (reserved_window IS NULL OR reserved_window<>?)),0) WHERE window=?`).bind(window,window),
+    db.prepare(`UPDATE units SET reserved_window=? WHERE reserved=1 AND trusted_hash IS NULL AND (reserved_window IS NULL OR reserved_window<>?)`).bind(window,window)
+  ]);
+}
+export async function recordRequest(db:D1Database) {
+  await db.prepare('UPDATE limits SET requests=requests+1 WHERE window=?').bind(month()).run();
+}
 export async function guestFromToken(db: D1Database, token: string | undefined): Promise<Guest | null> {
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
   return db.prepare('SELECT id,user_id,blocked FROM guests WHERE token_hash = ? AND expires_at > ?').bind(await sha256(new TextEncoder().encode(token)),now()).first<Guest>();
@@ -39,14 +54,15 @@ export async function contributions(db: D1Database, guest: Guest | null, userId:
 }
 
 export async function status(env: Env) {
-  const [control,campaigns,queue,budget]=await Promise.all([
+  const [control,campaigns,queue,budget,resources]=await Promise.all([
     env.DB.prepare('SELECT stopped,reason FROM controls WHERE id = ?').bind('main').first(),
     env.DB.prepare(`SELECT id,title,question,status,scientific_status,manifest_digest FROM campaigns WHERE status<>'draft' ORDER BY created_at DESC LIMIT 50`).all(),
     env.DB.prepare(`SELECT state,COUNT(*) AS count FROM units GROUP BY state`).all(),
-    env.DB.prepare('SELECT * FROM limits WHERE window = ?').bind(new Date().toISOString().slice(0,7)).first()
+    env.DB.prepare('SELECT * FROM limits WHERE window = ?').bind(month()).first(),
+    env.DB.prepare('SELECT COALESCE(SUM(input_bytes),0) AS reserved_input_bytes,COALESCE(SUM(validation_runs),0) AS replay_attempts,COALESCE(SUM(replay_wall_ms),0) AS replay_wall_ms FROM units').first()
   ]);
   return { version:'vah-status-1',stage:env.DEPLOYMENT_STAGE??'development',assignments_enabled:env.ASSIGNMENTS_ENABLED==='true' && !!control && !control.stopped,
-    reason:control?.reason??'No campaign is open.',campaigns:campaigns.results,queue:queue.results,budget,
+    reason:control?.reason??'No campaign is open.',campaigns:campaigns.results,queue:queue.results,budget,resources:{...resources,max_input_bytes:MAX_INPUT_STORAGE,measurement:'Replay elapsed time is not provider-metered CPU time. Input reservation conservatively counts duplicate inputs.'},
     validation:'Candidate checks and trusted replay; browser identifiers do not prove independent people or machines.' };
 }
 
@@ -55,7 +71,8 @@ export async function lease(env: Env, guest: Guest) {
   if (env.ASSIGNMENTS_ENABLED!=='true') return {state:'idle',message:'No work is currently available.',retry_after_seconds:300};
   const control=await env.DB.prepare("SELECT stopped FROM controls WHERE id='main'").first<{stopped:number}>();
   if (!control || control.stopped) return {state:'idle',message:'Work assignments are paused by the operator.',retry_after_seconds:300};
-  const window=new Date().toISOString().slice(0,7), attemptId=id(), at=now();
+  await reserveWindow(env.DB);
+  const window=month(), attemptId=id(), at=now();
   // The database is the queue. INSERT SELECT and all budget changes are one
   // atomic D1 batch, so simultaneous clients cannot spend the same capacity.
   const existing=await env.DB.prepare(`SELECT a.id,a.unit_id,a.expires_at FROM attempts a JOIN units u ON u.id=a.unit_id
@@ -68,15 +85,16 @@ export async function lease(env: Env, guest: Guest) {
       JOIN limits l ON l.window=? JOIN controls x ON x.id='main'
       WHERE x.stopped=0 AND c.status='active' AND r.state='approved' AND u.state IN ('open','checking')
       AND l.assignments<l.max_assignments AND l.reserved_ms + CASE WHEN u.reserved=0 THEN u.reserve_ms ELSE 0 END <= l.max_reserved_ms
+      AND l.requests+2000<=l.max_requests
       AND (SELECT COUNT(*) FROM attempts WHERE state='leased' AND expires_at>?) < l.max_inflight
-      AND (SELECT COUNT(*) FROM attempts WHERE unit_id=u.id)<6
+      AND (SELECT COUNT(*) FROM attempts WHERE unit_id=u.id)<u.attempt_limit
       AND (SELECT COUNT(*) FROM attempts WHERE unit_id=u.id AND (state IN ('submitted','checked') OR (state='leased' AND expires_at>?)))<2
       AND NOT EXISTS (SELECT 1 FROM attempts WHERE unit_id=u.id AND guest_id=?)
       AND NOT EXISTS (SELECT 1 FROM attempts WHERE guest_id=? AND state='leased' AND expires_at>?)
       ORDER BY u.created_at,u.id LIMIT 1`).bind(attemptId,guest.id,at+600,at,window,at,at,guest.id,guest.id,at),
     env.DB.prepare(`UPDATE limits SET assignments=assignments+1,reserved_ms=reserved_ms+COALESCE((SELECT CASE WHEN reserved=0 THEN reserve_ms ELSE 0 END FROM units WHERE id=(SELECT unit_id FROM attempts WHERE id=?)),0)
       WHERE window=? AND EXISTS (SELECT 1 FROM attempts WHERE id=?)`).bind(attemptId,window,attemptId),
-    env.DB.prepare('UPDATE units SET reserved=1 WHERE id=(SELECT unit_id FROM attempts WHERE id=?)').bind(attemptId)
+    env.DB.prepare('UPDATE units SET reserved=1,reserved_window=? WHERE id=(SELECT unit_id FROM attempts WHERE id=?)').bind(window,attemptId)
   ]);
   const attempt=await env.DB.prepare('SELECT id,unit_id,expires_at FROM attempts WHERE id=?').bind(attemptId).first<{id:string;unit_id:string;expires_at:number}>();
   if (!attempt) {
@@ -122,9 +140,22 @@ export async function validateUnit(env: Env, unitId: string, run: Runner) {
   const release=await env.DB.prepare('SELECT state FROM releases WHERE id=?').bind(unit.release_id).first<{state:string}>();
   if (release?.state!=='approved') return;
   if (!unit.trusted_hash) {
-    const claimed=await env.DB.prepare(`UPDATE units SET state='checking',checking_until=? WHERE id=? AND trusted_hash IS NULL
-      AND (state='open' OR (state='checking' AND checking_until<?)) RETURNING id`).bind(now()+300,unitId,now()).first();
-    if (!claimed) return;
+    await reserveWindow(env.DB);
+    const started=performance.now(),claimUntil=now()+300;
+    const batch=await env.DB.batch([
+      env.DB.prepare(`UPDATE units SET state='checking',checking_until=?,validation_runs=validation_runs+1 WHERE id=? AND trusted_hash IS NULL AND reserved=1
+        AND (state IN ('open','delivery_exhausted') OR (state='checking' AND checking_until<?))
+        AND (validation_runs=0 OR EXISTS (SELECT 1 FROM limits WHERE window=? AND reserved_ms+units.reserve_ms<=max_reserved_ms)) RETURNING id,validation_runs`)
+        .bind(claimUntil,unitId,now(),month()),
+      env.DB.prepare(`UPDATE limits SET reserved_ms=reserved_ms+COALESCE((SELECT reserve_ms FROM units WHERE id=? AND validation_runs>1 AND changes()>0),0) WHERE window=?`).bind(unitId,month())
+    ]);
+    const claimed=batch[0].results[0];
+    if (!claimed) {
+      await env.DB.prepare(`UPDATE units SET state='validation_error',validation_error='Trusted replay is waiting for a funded retry reserve.'
+        WHERE id=? AND state='open' AND trusted_hash IS NULL AND validation_runs>0
+        AND EXISTS (SELECT 1 FROM limits WHERE window=? AND reserved_ms+units.reserve_ms>max_reserved_ms)`).bind(unitId,month()).run();
+      return;
+    }
     try {
       const object=await env.RESEARCH.get(unit.input_key);
       if (!object || object.size>8000000) throw new Error('Missing or oversized input');
@@ -132,10 +163,10 @@ export async function validateUnit(env: Env, unitId: string, run: Runner) {
       if (await identity(input)!==unit.input_digest) throw new Error('Input digest mismatch');
       const result=await run(input,unit.release_id); // full trusted replay, including rescoring
       const trustedHash=await identity(result);
-      await env.DB.prepare(`UPDATE units SET trusted_result=?,trusted_hash=?,state='open',checking_until=NULL,validation_error=NULL WHERE id=?`).bind(JSON.stringify(result),trustedHash,unitId).run();
+      await env.DB.prepare(`UPDATE units SET trusted_result=?,trusted_hash=?,state='open',checking_until=NULL,validation_error=NULL,replay_wall_ms=replay_wall_ms+? WHERE id=?`).bind(JSON.stringify(result),trustedHash,Math.ceil(performance.now()-started),unitId).run();
       unit={...unit,trusted_hash:trustedHash};
     } catch (error) {
-      await env.DB.prepare(`UPDATE units SET state='validation_error',checking_until=NULL,validation_error=? WHERE id=?`).bind(String(error).slice(0,300),unitId).run();
+      await env.DB.prepare(`UPDATE units SET state='validation_error',checking_until=NULL,validation_error=?,replay_wall_ms=replay_wall_ms+? WHERE id=?`).bind(String(error).slice(0,300),Math.ceil(performance.now()-started),unitId).run();
       return; // operational failure, never a hypothesis rejection
     }
   }
@@ -151,8 +182,12 @@ export async function validateUnit(env: Env, unitId: string, run: Runner) {
   ]);
 }
 export async function maintain(env: Env, run: Runner) {
+  await env.DB.prepare(`UPDATE units SET state='delivery_exhausted',validation_error='Delivery attempt limit reached; owner review required.' WHERE state='open'
+    AND (SELECT COUNT(*) FROM attempts WHERE unit_id=units.id)>=attempt_limit
+    AND (SELECT COUNT(*) FROM attempts WHERE unit_id=units.id AND state='checked')<2
+    AND NOT EXISTS (SELECT 1 FROM attempts WHERE unit_id=units.id AND (state='submitted' OR (state='leased' AND expires_at>?)))`).bind(now()).run();
   const pending=await env.DB.prepare(`SELECT DISTINCT u.id FROM units u JOIN attempts a ON a.unit_id=u.id WHERE a.state='submitted'
-    AND (u.state IN ('open','complete') OR (u.state='checking' AND u.checking_until<?)) LIMIT 5`).bind(now()).all<{id:string}>();
+    AND (u.state IN ('open','complete','delivery_exhausted') OR (u.state='checking' AND u.checking_until<?)) LIMIT 1`).bind(now()).all<{id:string}>();
   for (const unit of pending.results) await validateUnit(env,unit.id,run);
 }
 
@@ -172,12 +207,19 @@ export async function addUnit(env: Env, campaignId: string, specification: unkno
   const bytes=new TextEncoder().encode(JSON.stringify(input));
   if (bytes.length>work.budget.max_input_bytes || await identity(input)!==work.input_digest) throw new ApiError(422,'Input does not match its specification.');
   const inputKey='inputs/'+work.input_digest.slice(7)+'.json';
-  await env.RESEARCH.put(inputKey,bytes,{httpMetadata:{contentType:'application/json'}});
-  await env.DB.prepare(`INSERT OR IGNORE INTO units (id,campaign_id,release_id,specification,input_digest,input_key,state,credit,reserve_ms,created_at)
-    SELECT ?,?,?,?,?,?,'open',?,?,? WHERE (SELECT COUNT(*) FROM units WHERE campaign_id=?)<?
+  // Reserve storage before writing to R2. Interrupted imports stay unassignable
+  // and can be retried with the identical scientific identity.
+  await env.DB.prepare(`INSERT OR IGNORE INTO units (id,campaign_id,release_id,specification,input_digest,input_key,state,credit,reserve_ms,created_at,input_bytes)
+    SELECT ?,?,?,?,?,?,'importing',?,?,?,? WHERE (SELECT COUNT(*) FROM units WHERE campaign_id=?)<?
+    AND COALESCE((SELECT SUM(input_bytes) FROM units),0)+?<=?
     AND EXISTS (SELECT 1 FROM campaigns WHERE id=? AND status='draft')
     AND EXISTS (SELECT 1 FROM releases WHERE id=? AND state='approved')`)
-    .bind(unitId,campaignId,work.release_id,JSON.stringify(work),work.input_digest,inputKey,work.work_estimate,reserveMs,now(),campaignId,JSON.parse(campaign.manifest).max_units,campaignId,work.release_id).run();
-  if (!await env.DB.prepare('SELECT id FROM units WHERE id=?').bind(unitId).first()) throw new ApiError(409,'Campaign work limit, state, or release prevents import.');
+    .bind(unitId,campaignId,work.release_id,JSON.stringify(work),work.input_digest,inputKey,work.work_estimate,reserveMs,now(),bytes.length,campaignId,JSON.parse(campaign.manifest).max_units,bytes.length,MAX_INPUT_STORAGE,campaignId,work.release_id).run();
+  const imported=await env.DB.prepare('SELECT id,state FROM units WHERE id=?').bind(unitId).first<{id:string;state:string}>();
+  if (!imported) throw new ApiError(409,'Storage reserve, campaign work limit, state, or release prevents import.');
+  if(imported.state==='importing'){
+    await env.RESEARCH.put(inputKey,bytes,{httpMetadata:{contentType:'application/json'}});
+    await env.DB.prepare("UPDATE units SET state='open' WHERE id=? AND state='importing'").bind(unitId).run();
+  }
   return {id:unitId};
 }

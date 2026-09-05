@@ -8,6 +8,26 @@ struct Args {
 }
 #[derive(Subcommand)]
 enum Command {
+    /// Perform a bounded, resumable part of an annealing search.
+    Step {
+        #[arg(long)]
+        job: PathBuf,
+        #[arg(long)]
+        checkpoint: Option<PathBuf>,
+        #[arg(long, default_value_t = 256)]
+        proposals: u32,
+        #[arg(long)]
+        out: PathBuf,
+    },
+    /// Recompute and serialize the result of a completed checkpoint.
+    Finish {
+        #[arg(long)]
+        job: PathBuf,
+        #[arg(long)]
+        checkpoint: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
     /// Construct strict Naibbe v2 benchmark text. Not a worker operation.
     EncodeNaibbe {
         #[arg(long)]
@@ -54,6 +74,31 @@ fn main() {
 }
 fn run() -> Result<(), Box<dyn std::error::Error>> {
     match Args::parse().command {
+        Command::Step {
+            job,
+            checkpoint,
+            proposals,
+            out,
+        } => {
+            let job = serde_json::from_slice(&std::fs::read(job)?)?;
+            let checkpoint = checkpoint
+                .map(std::fs::read)
+                .transpose()?
+                .map(|bytes| serde_json::from_slice(&bytes))
+                .transpose()?;
+            let next = vah_search::step(&job, checkpoint, proposals)?;
+            std::fs::write(out, serde_json::to_vec(&next)?)?;
+        }
+        Command::Finish {
+            job,
+            checkpoint,
+            out,
+        } => {
+            let job = serde_json::from_slice(&std::fs::read(job)?)?;
+            let checkpoint = serde_json::from_slice(&std::fs::read(checkpoint)?)?;
+            let result = vah_search::finish(&job, checkpoint)?;
+            std::fs::write(out, serde_json::to_vec(&result)?)?;
+        }
         Command::EncodeNaibbe {
             input,
             key,

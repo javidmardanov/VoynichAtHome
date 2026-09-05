@@ -1,6 +1,5 @@
-import { z } from 'zod';
+import { ProfileUpdate, TeamUpdate } from '../contracts';
 import { ApiError, now, id } from './coordinator';
-const Name=z.string().trim().min(2).max(48).regex(/^[\p{L}\p{N} ._'’-]+$/u,'Use letters, numbers, spaces, or simple punctuation.');
 export async function profile(env:Env,userId:string) {
   const [profile,team]=await Promise.all([
     env.DB.prepare('SELECT display_name,public,moderated FROM profiles WHERE user_id=?').bind(userId).first(),
@@ -8,7 +7,7 @@ export async function profile(env:Env,userId:string) {
   ]);return {profile,team};
 }
 export async function saveProfile(env:Env,userId:string,payload:unknown) {
-  const p=z.object({display_name:Name,public:z.boolean()}).strict().parse(payload);
+  const p=ProfileUpdate.parse(payload);
   await env.DB.prepare(`INSERT INTO profiles (user_id,display_name,public,updated_at) VALUES (?,?,?,?)
     ON CONFLICT(user_id) DO UPDATE SET display_name=excluded.display_name,public=excluded.public,updated_at=excluded.updated_at`)
     .bind(userId,p.display_name,p.public?1:0,now()).run();return profile(env,userId);
@@ -25,7 +24,7 @@ export async function directory(env:Env) {
   ]);return {people:people.results,teams:teams.results};
 }
 export async function changeTeam(env:Env,userId:string,payload:unknown) {
-  const choice=z.union([z.object({create:Name}).strict(),z.object({join:z.string().uuid()}).strict(),z.object({leave:z.literal(true)}).strict()]).parse(payload);
+  const choice=TeamUpdate.parse(payload);
   if('leave' in choice){await env.DB.prepare('DELETE FROM membership WHERE user_id=?').bind(userId).run();return {team:null};}
   if('create' in choice){
     const existing=await env.DB.prepare('SELECT id FROM teams WHERE owner_id=?').bind(userId).first();

@@ -8,7 +8,7 @@ self.onmessage=async({data}:{data:Message})=>{
   try {
     const {lease}=data,work=Work.parse(lease.work),job=validateSearchWork(work,data.job);
     if(await identity(work)!==lease.unit_id || await identity(job)!==work.input_digest)throw Error('Work failed its identity check.');
-    if(lease.release.id!==approved.id||lease.release.digest!==approved.digest||lease.release.url!==approved.url)throw Error('This worker release is not approved by this application.');
+    if(work.release_id!==approved.id||lease.release.id!==approved.id||lease.release.digest!==approved.digest||lease.release.url!==approved.url)throw Error('This worker release is not approved by this application.');
     const response=await fetch(approved.url);if(!response.ok)throw Error('Worker module is unavailable.');
     const bytes=new Uint8Array(await response.arrayBuffer());
     if(await sha256(bytes)!==approved.digest)throw Error('Worker module failed its digest check.');

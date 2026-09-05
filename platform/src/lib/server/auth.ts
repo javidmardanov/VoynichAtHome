@@ -4,6 +4,7 @@ import { drizzle } from 'drizzle-orm/d1';
 import * as schema from '../../../db/schema';
 
 export function configuredProviders(env: Env) {
+  if(!env.AUTH_BASE_URL||!env.AUTH_SECRET||env.AUTH_SECRET.length<32)return [];
   return [env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET ? 'github' : null,
     env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET ? 'google' : null].filter((v): v is 'github' | 'google' => !!v);
 }
@@ -17,6 +18,7 @@ export function createAuth(env: Env) {
     appName: 'Voynich@home', baseURL: env.AUTH_BASE_URL, secret: env.AUTH_SECRET,
     database: drizzleAdapter(drizzle(env.DB, { schema }), { provider: 'sqlite', schema, transaction: false }),
     socialProviders,
+    advanced: { ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] } },
     emailAndPassword: { enabled: false },
     account: { accountLinking: { enabled: false }, encryptOAuthTokens: true },
     session: { expiresIn: 60 * 60 * 24 * 30, updateAge: 60 * 60 * 24, cookieCache: { enabled: false } },

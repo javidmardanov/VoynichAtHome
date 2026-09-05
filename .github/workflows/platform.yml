@@ -37,6 +37,7 @@ jobs:
       - run: git diff --exit-code -- contracts/v1
       - run: npm run build
       - run: npm run package:worker --workspace platform
+      - run: npm run package:cli --workspace platform
       - name: Install browser engines
         if: runner.os == 'Linux'
         working-directory: platform
@@ -45,3 +46,17 @@ jobs:
         if: runner.os == 'Linux'
         working-directory: platform
         run: npx playwright test
+      - name: Exercise 25 computing clients and orderly overload
+        if: runner.os == 'Linux'
+        working-directory: platform
+        run: npm run test:load
+      - name: Retain non-secret test summaries
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: browser-and-load-evidence
+          path: |
+            platform/test-results/browser-report.json
+            platform/test-results/load-report.json
+            platform/test-results/load-evidence.json
+          retention-days: 30

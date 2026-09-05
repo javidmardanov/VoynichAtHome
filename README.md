@@ -8,6 +8,8 @@ An open research platform for testing explanations of the Voynich manuscript. Th
 
 - [Current design and research program](docs/DESIGN.md)
 - [Release acceptance evidence](docs/RELEASE-STATUS.md)
+- [Browser platform, CLI participation, and reproduction](platform/README.md)
+- [Owner release procedure](docs/RELEASING.md)
 - [Scientific corrections and review](docs/SCIENTIFIC-CORRECTIONS.md)
 - [Data sources and rights](catalog/source-registry.json)
 - [Contributing](CONTRIBUTING.md) and [security](SECURITY.md)

@@ -16,6 +16,7 @@ export async function ownerAction(env:Env,actor:string,payload:unknown) {
     z.object({action:z.literal('campaign-state'),id:Identifier,status:z.enum(['active','paused'])}).strict(),
     z.object({action:z.literal('moderate'),kind:z.enum(['profile','team','guest']),id:Identifier,hidden:z.boolean()}).strict(),
     z.object({action:z.literal('retry-validation'),id:z.string().regex(/^sha256:[0-9a-f]{64}$/)}).strict()
+    ,z.object({action:z.literal('extend-delivery'),id:z.string().regex(/^sha256:[0-9a-f]{64}$/),reason:z.string().trim().min(10).max(200)}).strict()
   ]).parse(payload);
   let result:unknown={updated:true};
   switch(action.action){
@@ -37,6 +38,8 @@ export async function ownerAction(env:Env,actor:string,payload:unknown) {
       const campaign=await env.DB.prepare('SELECT status FROM campaigns WHERE id=?').bind(action.id).first<{status:string}>();
       if(!campaign || campaign.status==='completed')throw new ApiError(409,'Completed campaigns require a new declared continuation.');
       if(action.status==='active'){
+        const unfinished=await env.DB.prepare("SELECT COUNT(*) n FROM units WHERE campaign_id=? AND state='importing'").bind(action.id).first<{n:number}>();
+        if(unfinished?.n)throw new ApiError(409,'Finish interrupted imports before opening this campaign.');
         const n=await env.DB.prepare("SELECT COUNT(*) n FROM units u JOIN releases r ON r.id=u.release_id WHERE u.campaign_id=? AND r.state='approved'").bind(action.id).first<{n:number}>();
         if(!n?.n)throw new ApiError(409,'Import approved work before opening this campaign.');
       }
@@ -47,6 +50,10 @@ export async function ownerAction(env:Env,actor:string,payload:unknown) {
       await env.DB.prepare(sql).bind(action.hidden?1:0,action.id).run();break;
     }
     case 'retry-validation':await env.DB.prepare("UPDATE units SET state='open',validation_error=NULL WHERE id=? AND state='validation_error'").bind(action.id).run();break;
+    case 'extend-delivery':{
+      const updated=await env.DB.prepare("UPDATE units SET state='open',validation_error=NULL,attempt_limit=attempt_limit+2 WHERE id=? AND state='delivery_exhausted' AND attempt_limit<20 RETURNING id").bind(action.id).first();
+      if(!updated)throw new ApiError(409,'Only exhausted deliveries below 20 attempts can be extended. Research records remain unchanged.');break;
+    }
   }
   // Do not put full inputs, OAuth tokens, or guest proofs in the audit log.
   const detail=action.action==='unit'?{campaign:action.campaign}:action.action==='campaign'?{imported:true}:action;
