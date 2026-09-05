@@ -18,3 +18,4 @@ test-results/
 playwright-report/
 /platform/.openai/
 .voynich-worker/
+/platform/canonical-kernel/

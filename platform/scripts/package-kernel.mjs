@@ -1,7 +1,13 @@
 import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { resolve,relative } from 'node:path';
-const bytes=await readFile('../kernel/target/wasm32-unknown-unknown/release/vah_search_wasm.wasm');
+import { parseArgs } from 'node:util';
+import { isDeepStrictEqual } from 'node:util';
+const {values}=parseArgs({options:{from:{type:'string'},'verify-only':{type:'boolean',default:false}}});
+// A release has one approved WASM binary, shared by every native package.
+// Different native builders need not produce byte-identical WASM themselves.
+const artifact=values.from?resolve(values.from):null;
+const bytes=await readFile(artifact?resolve(artifact,'search.wasm'):'../kernel/target/wasm32-unknown-unknown/release/vah_search_wasm.wasm');
 const module=await WebAssembly.compile(bytes);
 if(WebAssembly.Module.imports(module).length)throw Error('Approved search kernel must have no imports');
 const expected=['memory','vah_alloc','vah_free','vah_search','vah_out_ptr','vah_out_len','vah_out_clear'];
@@ -20,9 +26,12 @@ const sourceDigest='sha256:'+createHash('sha256').update(JSON.stringify(sourceFi
 const digest='sha256:'+createHash('sha256').update(bytes).digest('hex');
 const release={id:'search-'+digest.slice(7,23),digest,url:'/kernels/'+digest.slice(7)+'.wasm',abi:'vah-search-cabi-1',max_memory_bytes:100663296,imports:[],
   build:{target:'wasm32-unknown-unknown',toolchain:'1.94.1',flags:'-C link-arg=--max-memory=100663296',source_normalization:'UTF-8 with LF for project source; exact bytes for third_party',source_tree_digest:sourceDigest,source_files:sourceFiles}};
-await mkdir('static/kernels',{recursive:true});await mkdir('src/lib/generated',{recursive:true});
-await writeFile('static'+release.url,bytes);
-await writeFile('src/lib/generated/kernel.json',JSON.stringify(release,null,2)+'\n');
-await writeFile('static/kernels/release.json',JSON.stringify(release,null,2)+'\n');
-await writeFile('src/lib/generated/search.wasm',bytes);
+if(artifact&&!isDeepStrictEqual(JSON.parse(await readFile(resolve(artifact,'kernel.json'),'utf8')),release))throw Error('Canonical module metadata, bytes or checked-out sources differ');
+if(!values['verify-only']){
+  await mkdir('static/kernels',{recursive:true});await mkdir('src/lib/generated',{recursive:true});
+  await writeFile('static'+release.url,bytes);
+  await writeFile('src/lib/generated/kernel.json',JSON.stringify(release,null,2)+'\n');
+  await writeFile('static/kernels/release.json',JSON.stringify(release,null,2)+'\n');
+  await writeFile('src/lib/generated/search.wasm',bytes);
+}
 console.log(JSON.stringify({id:release.id,digest:release.digest,source_tree_digest:sourceDigest,max_memory_bytes:release.max_memory_bytes}));

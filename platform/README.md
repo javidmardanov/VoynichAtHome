@@ -55,7 +55,7 @@ Owner operations are strict JSON requests to `/api/v1/owner` and are available i
 
 New months start closed until an owner supplies a budget; existing checking obligations carry forward. Extra replay attempts require a fresh reserve. The initial application reserve is at most 1,000,000 ms per month and 25 simultaneous leases. The default traffic allowance is 20,000 coordinator requests; new assignments stop with 2,000 requests reserved for finishing work. Incoming traffic and other provider charges are not capped by these counters.
 
-Input imports reserve up to 128 MB in aggregate before writing R2, conservatively counting duplicate payloads. An interrupted import remains in the importing state; repeat the identical operation to finish it. A campaign cannot open while an import is incomplete. Existing rows from before the storage migration reserve the full 8 MB bound conservatively until reconciled by the operator.
+Input imports reserve up to 128 MB in aggregate before writing R2, counting compact inputs and immutable shared model/ciphertext objects. An interrupted import remains in the importing state; repeat the identical operation to finish it. A campaign cannot open while an import is incomplete. Existing rows from before the storage migration reserve the full 8 MB bound conservatively until reconciled by the operator.
 
 After six failed/expired deliveries, maintenance marks the unit delivery_exhausted. An owner may apply `{"action":"extend-delivery","id":"sha256:...","reason":"Reviewed the expired attempts and operating cause."}` to allow two additional deliveries, up to twenty total. This preserves old attempts and scientific identity. Validation retries remain operational events and require reserve capacity.
 
@@ -74,6 +74,8 @@ The pinned Cloudflare adapter is wrapped by `scripts/isolated-adapter.mjs` to di
 `npm run package:worker --workspace platform` uses Wrangler's dry run to bundle the SvelteKit Worker, statically imported WASM, public assets, logical Sites bindings, and migrations under root `dist/`. It performs no paid setup or deployment. The root `.openai/hosting.json` owns the existing Site identity; the ignored platform copy is generated for the Sites Vite plugin. Push the exact source commit before saving a Sites version.
 
 The two dependency overrides in the root package address GHSA-pxg6-pf52-xh8x (cookie) and GHSA-67mh-4wv8-2f99 (the development esbuild loader). Builds, migrations, cookie/session tests, and the audit must remain green when updating them.
+
+Release CI builds one canonical WASM artifact and imports it on all three native platforms with `node scripts/package-kernel.mjs --from canonical-kernel`. This validates the binary and its source-tree digest before replacing generated metadata. Every native package and the deployable Worker archive therefore approve the same module identity. Independent local WASM rebuilds can have different byte hashes; they are development builds and cannot be mixed into a published release.
 
 ## Generation, verification and compatible search work
 
