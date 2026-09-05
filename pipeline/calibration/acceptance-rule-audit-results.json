@@ -1,0 +1,93 @@
+{
+  "calibration_reports": [
+    {
+      "file": "report-off-grid-refined.json",
+      "reported_epsilon_N8": 2.314198380611382,
+      "reported_rule_A_hidden_compatible": false,
+      "reported_rule_A_hidden_k_n": [
+        6,
+        8
+      ],
+      "control_medians": {
+        "bagofwords": 26.79429402723452,
+        "charmarkov": 208.63102449829813,
+        "gibberish": 33.59229598528312
+      },
+      "exact_finite_pool_q99_N8": 2.310379357380668,
+      "finite_pool_probability_above_reported_threshold_N8": 0.009152068355345733,
+      "exact_finite_pool_q99_N16": 2.164929453520463,
+      "finite_pool_probability_above_reported_threshold_N16": 0.00011581071246596129
+    },
+    {
+      "file": "report-off-grid.json",
+      "reported_epsilon_N8": 2.314198380611382,
+      "reported_rule_A_hidden_compatible": false,
+      "reported_rule_A_hidden_k_n": [
+        0,
+        8
+      ],
+      "control_medians": {
+        "bagofwords": 26.79429402723452,
+        "charmarkov": 208.63102449829813,
+        "gibberish": 33.59229598528312
+      },
+      "exact_finite_pool_q99_N8": 2.310379357380668,
+      "finite_pool_probability_above_reported_threshold_N8": 0.009152068355345733,
+      "exact_finite_pool_q99_N16": 2.164929453520463,
+      "finite_pool_probability_above_reported_threshold_N16": 0.00011581071246596129
+    },
+    {
+      "file": "report-on-grid.json",
+      "reported_epsilon_N8": 5.039490020093613,
+      "reported_rule_A_hidden_compatible": false,
+      "reported_rule_A_hidden_k_n": [
+        6,
+        8
+      ],
+      "control_medians": {
+        "bagofwords": 30.967690365135233,
+        "charmarkov": 20647.481121988436,
+        "gibberish": 135.17529307991583
+      },
+      "exact_finite_pool_q99_N8": 4.9906420057813,
+      "finite_pool_probability_above_reported_threshold_N8": 0.008918070320051359,
+      "exact_finite_pool_q99_N16": 3.221819316583318,
+      "finite_pool_probability_above_reported_threshold_N16": 6.0602574631779714e-05
+    }
+  ],
+  "scale_floors": [
+    {
+      "file": "pipeline/targets/fingerprint_v1.json",
+      "floor_statistics": []
+    },
+    {
+      "file": "pipeline/calibration/planted-off-grid/fingerprint_v1.json",
+      "floor_statistics": [
+        "h0"
+      ]
+    },
+    {
+      "file": "pipeline/calibration/planted-on-grid/fingerprint_v1.json",
+      "floor_statistics": [
+        "h0",
+        "wlen_10"
+      ]
+    }
+  ],
+  "analytic_two_mode_counterexample": {
+    "N": 8,
+    "planted_target": 0,
+    "oracle_median_q99": 0,
+    "rejection_given_majority_target": 0.005024350000000001,
+    "rejection_given_minority_target": 0.99956835,
+    "rejection_across_fresh_true_targets": 0.10447875000000001
+  },
+  "zero_errors_one_sided_95pct_upper_bound": {
+    "5": 0.4507197283469412,
+    "64": 0.045729702330762456,
+    "298": 0.010002432437677733,
+    "299": 0.009969146792899286,
+    "300": 0.00993608194445772
+  },
+  "minimum_zero_error_trials_for_1pct_upper_bound": 299
+}

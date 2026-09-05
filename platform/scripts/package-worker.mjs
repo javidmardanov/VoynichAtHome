@@ -1,0 +1,30 @@
+import { mkdir,cp,rename,readFile,writeFile,rm,readdir } from 'node:fs/promises';
+import { resolve,relative } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { webLicenseNotices } from './web-license-notices.mjs';
+const project=resolve('..'),destination=resolve('../dist');
+if(relative(project,destination)!=='dist')throw Error('Unexpected build destination');
+const module=JSON.parse(await readFile('src/lib/generated/kernel.json','utf8'));
+const cliModule=JSON.parse(await readFile('dist/cli/kernel.json','utf8'));
+if(module.digest!==cliModule.digest)throw Error('Package the CLI with the same approved module before packaging the Worker');
+await rm(destination,{recursive:true,force:true});await mkdir(destination+'/server',{recursive:true});
+const wrangler=resolve('../node_modules/wrangler/bin/wrangler.js');
+const build=spawnSync(process.execPath,[wrangler,'deploy','--dry-run','--config','wrangler.deploy.jsonc','--outdir',destination+'/server'],{stdio:'inherit'});
+if(build.status!==0)throw Error('Worker bundling failed');
+await rename(destination+'/server/worker.js',destination+'/server/index.js');
+await cp('.svelte-kit/output/client',destination+'/client',{recursive:true});await cp('static',destination+'/client',{recursive:true});
+await cp('dist/.openai',destination+'/.openai',{recursive:true});
+// The Sites runtime provisions these logical bindings; provider-specific local
+// IDs and deployment variables must not be treated as production credentials.
+const hosting=JSON.parse(await readFile('../.openai/hosting.json','utf8'));
+await writeFile(destination+'/.openai/hosting.json',JSON.stringify(hosting,null,2)+'\n');
+await cp('../LICENSE',destination+'/LICENSE');
+await webLicenseNotices(destination+'/licenses/web');
+await cp('../third_party/naibbe/LICENSE',destination+'/licenses/Naibbe-LICENSE');
+await cp('../third_party/naibbe/SOURCE.json',destination+'/licenses/Naibbe-SOURCE.json');
+await cp('dist/cli/licenses',destination+'/licenses/rust',{recursive:true});
+await cp('dist/cli/dependencies.json',destination+'/licenses/rust/dependencies.json');
+await cp(destination+'/licenses',destination+'/client/notices',{recursive:true});
+await cp('../LICENSE',destination+'/client/notices/LICENSE');
+await writeFile(destination+'/client/notices/README.txt','Voynich@home distribution notices\n\nOriginal project: /notices/LICENSE\nWeb dependencies: /notices/web/dependencies.json\nRust kernel dependencies: /notices/rust/dependencies.json\nNaibbe source: /notices/Naibbe-SOURCE.json\nNaibbe license: /notices/Naibbe-LICENSE\n\nThe inventories name the accompanying notice files. Each dependency retains its original terms.\n');
+console.log('Packaged Worker, static assets, approved WebAssembly, and migrations.');

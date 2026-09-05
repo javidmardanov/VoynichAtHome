@@ -1,0 +1,10 @@
+[package]
+name = "vah-corpus"
+description = "Shared corpus types for the Voynich@Home science kernel"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde = { workspace = true }

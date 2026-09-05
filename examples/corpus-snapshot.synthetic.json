@@ -1,0 +1,63 @@
+{
+  "schema_version": "1.0.0",
+  "snapshot_id": "synthetic-known-cipher-v1",
+  "title": "Synthetic Caesar known-answer fixture",
+  "created_at": "2026-08-30T19:30:00Z",
+  "sources": [
+    {
+      "source_id": "synthetic-latin-plaintext",
+      "role": "positive-control-plaintext",
+      "title": "Tiny public-domain Latin phrase fixture",
+      "version": "1",
+      "uri": "urn:voynich-at-home:fixture:synthetic-plaintext:v1",
+      "retrieved_at": "2026-08-30T19:30:00Z",
+      "media_type": "text/plain",
+      "bytes": 25,
+      "sha256": "61240884ab999dfc1fe824d986b2411aca89d0672823907058a029094d17c288",
+      "attribution": "Voynich@Home synthetic contract fixture",
+      "rights": {
+        "status": "review-required",
+        "license_expression": null,
+        "terms_uri": "https://github.com/javidmardanov/VoynichAtHome",
+        "distribution": "allowed",
+        "reviewed_at": "2026-08-30T19:30:00Z",
+        "note": "Repository-level software and fixture licensing remains a decision for the repository owner."
+      }
+    }
+  ],
+  "transformations": [
+    {
+      "transformation_id": "caesar-shift-7",
+      "tool": {
+        "name": "benchmarks/generators/caesar.py",
+        "version": "1",
+        "source_digest": "sha256:3368a434739316cd8ed41812a478d243c4fa6a38dcf2a98052deaa781fe6061a"
+      },
+      "inputs": [
+        "synthetic-latin-plaintext"
+      ],
+      "parameters": {
+        "key": 7
+      },
+      "output": {
+        "artifact_id": "synthetic-caesar-ciphertext",
+        "media_type": "text/plain",
+        "bytes": 25,
+        "sha256": "492630188c1d37ba82a59668a43f52ff42855641f65e70830e1b114e83971b8c"
+      }
+    }
+  ],
+  "views": [
+    {
+      "view_id": "synthetic-caesar-ciphertext-v1",
+      "input_artifact_ids": [
+        "synthetic-caesar-ciphertext"
+      ],
+      "transcription_policy": "Exact ASCII fixture bytes; no manuscript transcription is involved.",
+      "segmentation_policy": "Preserve spaces and newline; score all codepoints.",
+      "uncertainty_policy": "No uncertain observations are present.",
+      "normalization_policy": "No normalization.",
+      "artifact_sha256": "492630188c1d37ba82a59668a43f52ff42855641f65e70830e1b114e83971b8c"
+    }
+  ]
+}

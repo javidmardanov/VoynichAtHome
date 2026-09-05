@@ -1,0 +1,85 @@
+name: platform and search contracts
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  canonical-kernel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Build the single approved WebAssembly artifact
+        working-directory: kernel
+        env:
+          RUSTFLAGS: '-C link-arg=--max-memory=100663296'
+        run: cargo build --locked --release --target wasm32-unknown-unknown -p vah-search-wasm --lib
+      - working-directory: platform
+        run: node scripts/package-kernel.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: approved-wasm
+          path: |
+            platform/src/lib/generated/kernel.json
+            platform/src/lib/generated/search.wasm
+          retention-days: 30
+  platform:
+    needs: canonical-kernel
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npx --yes npm@11.19.1 ci
+      - name: Build the pinned native search
+        working-directory: kernel
+        run: cargo build --locked --release -p vah-search -p vah-search-wasm --bins
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: approved-wasm
+          path: platform/canonical-kernel
+      - name: Verify the common module against this source checkout
+        working-directory: platform
+        run: node scripts/package-kernel.mjs --from canonical-kernel
+      - run: npm run check
+      - run: npm test
+      - run: npm audit --audit-level=low
+      - name: Verify generated schemas
+        working-directory: platform
+        run: node scripts/run-ts.mjs scripts/export-contracts.ts
+      - run: git diff --exit-code -- contracts/v1
+      - run: npm run build
+      - run: npm run package:cli --workspace platform
+      - run: npm run package:worker --workspace platform
+      - name: Install browser engines
+        if: runner.os == 'Linux'
+        working-directory: platform
+        run: npx playwright install --with-deps chromium firefox webkit
+      - name: Exercise the actual Worker in three browser engines
+        if: runner.os == 'Linux'
+        working-directory: platform
+        run: npx playwright test
+      - name: Exercise 25 computing clients and orderly overload
+        if: runner.os == 'Linux'
+        working-directory: platform
+        run: npm run test:load
+      - name: Retain non-secret test summaries
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: browser-and-load-evidence
+          path: |
+            platform/test-results/browser-report.json
+            platform/test-results/load-report.json
+            platform/test-results/load-evidence.json
+          retention-days: 30

@@ -1,0 +1,16 @@
+[package]
+name = "vah-generators"
+description = "Deterministic text generators (candidate mechanisms and controls) for the Voynich fingerprint experiment"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+vah-corpus = { path = "../vah-corpus" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+rand_chacha = { workspace = true }
+rand_core = { workspace = true }
+libm = { workspace = true }

@@ -1,0 +1,12 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "voynich-at-home",
+  "main": ".svelte-kit/cloudflare/_worker.js",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": { "binding": "ASSETS", "directory": ".svelte-kit/cloudflare" },
+  "d1_databases": [{ "binding": "DB", "database_name": "voynich-local", "database_id": "local-only", "migrations_dir": "drizzle" }],
+  "r2_buckets": [{ "binding": "RESEARCH", "bucket_name": "voynich-research-local" }],
+  "vars": { "DEPLOYMENT_STAGE": "development", "ASSIGNMENTS_ENABLED": "false" },
+  "observability": { "enabled": true, "head_sampling_rate": 0.1 }
+}

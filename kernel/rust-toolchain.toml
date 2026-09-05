@@ -1,0 +1,7 @@
+[toolchain]
+# Pinned so that every contributor and CI job compiles the science kernel with
+# the same compiler. Determinism of results does not depend on the compiler
+# version by design, but the golden tests check that claim on every build.
+channel = "1.94.1"
+targets = ["wasm32-unknown-unknown"]
+components = ["clippy", "rustfmt"]

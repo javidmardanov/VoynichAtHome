@@ -1,0 +1,177 @@
+{
+  "id": "search-764a70e186939f21",
+  "digest": "sha256:764a70e186939f21c4d04ad8d67b910827a2e2b8b76837fd23862c0f721880c7",
+  "url": "/kernels/764a70e186939f21c4d04ad8d67b910827a2e2b8b76837fd23862c0f721880c7.wasm",
+  "abi": "vah-search-cabi-1",
+  "max_memory_bytes": 100663296,
+  "imports": [],
+  "build": {
+    "target": "wasm32-unknown-unknown",
+    "toolchain": "1.94.1",
+    "flags": "-C link-arg=--max-memory=100663296",
+    "source_normalization": "UTF-8 with LF for project source; exact bytes for third_party",
+    "source_tree_digest": "sha256:f4a6217d47483c835a8190a93b0e2bd27c021c14407a628197157cd2f73381ec",
+    "source_files": [
+      {
+        "path": "kernel/Cargo.lock",
+        "sha256": "1f34584ca69aa668f36853d9eb014c1bfd6da08190321e44cea44b05e16d7f94"
+      },
+      {
+        "path": "kernel/Cargo.toml",
+        "sha256": "56acf63d31415b3efb4e265fd8c796ee4b9b0686131d4e2e48fa6b2c935a0a1e"
+      },
+      {
+        "path": "kernel/crates/vah-cli/Cargo.toml",
+        "sha256": "f172cb2d343a9da642c32ffd7e1274d6d530c55f289bfa4864867332be8b8a72"
+      },
+      {
+        "path": "kernel/crates/vah-cli/src/main.rs",
+        "sha256": "6d677e2054f197d79af2d4d13be59ef446c07444bcf2cfc224a7ada2f00be19c"
+      },
+      {
+        "path": "kernel/crates/vah-cli/src/refine.rs",
+        "sha256": "e78dd1fb5e9ef921d03ba76cfd51fc50e24ed89e70f149993bd9f43497906f7a"
+      },
+      {
+        "path": "kernel/crates/vah-cli/src/sweep.rs",
+        "sha256": "e781214dd8ec23c0a5b6489741d9ce08f0241459c8d493744b4e5f549426c6a0"
+      },
+      {
+        "path": "kernel/crates/vah-cli/tests/calibration.rs",
+        "sha256": "ec8633762971134257bf86fe6e7358999b17de5153267b8ebdca34b7788406dd"
+      },
+      {
+        "path": "kernel/crates/vah-cli/tests/golden.rs",
+        "sha256": "e137b85c47f148cdce5857a03268f12e41d34ba0471e51d1c07152abcd255598"
+      },
+      {
+        "path": "kernel/crates/vah-cli/tests/real_targets.rs",
+        "sha256": "0e7101b87e02078bcfe599b47def202e2c3cf7b722339e17487e0e28db7deed1"
+      },
+      {
+        "path": "kernel/crates/vah-cli/tests/refine.rs",
+        "sha256": "bc26382824d48cb195a18877e10df6d64dd6d7d8ff8a21cb1d1a4d8eb297149c"
+      },
+      {
+        "path": "kernel/crates/vah-core/Cargo.toml",
+        "sha256": "ce64c49c0a4b0afb5fb645ffc9967f5438e7c517e3936a65adb334bc3ee14e69"
+      },
+      {
+        "path": "kernel/crates/vah-core/src/calib.rs",
+        "sha256": "ba876562e5b0639635a4b4b09c55fa8c6ec8bf697fe2e9e0d7f2078c097b865c"
+      },
+      {
+        "path": "kernel/crates/vah-core/src/conditional.rs",
+        "sha256": "e880491c5a5d76c18087f6eae6fd57a89ff0bd484ffa1b8b15bc38adf21a5dd4"
+      },
+      {
+        "path": "kernel/crates/vah-core/src/grid.rs",
+        "sha256": "f8a8b676913d147499dbe4d9c17d3d28c82e57f49fac230a17619b73ab969f26"
+      },
+      {
+        "path": "kernel/crates/vah-core/src/jcs.rs",
+        "sha256": "ba15115960473abb951500af396fe3333170c9dd2d7de068de87182b753f2258"
+      },
+      {
+        "path": "kernel/crates/vah-core/src/lib.rs",
+        "sha256": "624fc8cabfc33237f42e98c18400e1417e362088008c18a13ac42e98a39d52a9"
+      },
+      {
+        "path": "kernel/crates/vah-core/src/partition.rs",
+        "sha256": "27e2d8e4e9178a62dc7b8d5d3783a2f8fbea7b5b9ddca786e3a71ae38817358f"
+      },
+      {
+        "path": "kernel/crates/vah-core/tests/roundtrip.rs",
+        "sha256": "a59984537e2ccd8fe638490ba331d702a2b016e1575c954e4e0ba351549cc6bb"
+      },
+      {
+        "path": "kernel/crates/vah-corpus/Cargo.toml",
+        "sha256": "abca9965f42a02de254c65d8a1d7c9ad8e936504b2fa7bb77af8b972af36164a"
+      },
+      {
+        "path": "kernel/crates/vah-corpus/src/lib.rs",
+        "sha256": "8bdb168d2f88ced6bf9852659bca86d2a84a87a44f4344106b1dfc3d71e66bc7"
+      },
+      {
+        "path": "kernel/crates/vah-generators/Cargo.toml",
+        "sha256": "df7122b71863920f24a1c41862346c04dd06d8d9876aaf413dbb582b8cbd2d3e"
+      },
+      {
+        "path": "kernel/crates/vah-generators/src/lib.rs",
+        "sha256": "3e5b874a77e0e4ca8c125e7b0edf9487101f18c6648bf8bc6314b0ee6bda2f1a"
+      },
+      {
+        "path": "kernel/crates/vah-ivtff/Cargo.toml",
+        "sha256": "5b0408e15785a5d848638662186177729d2f6bf2bbaec26aed9cc71a24d2de86"
+      },
+      {
+        "path": "kernel/crates/vah-ivtff/src/lib.rs",
+        "sha256": "16cc362e601ca60193bd862677eee5939b84db52a00bdc97454c15f30dd9a688"
+      },
+      {
+        "path": "kernel/crates/vah-ivtff/tests/real_file.rs",
+        "sha256": "28b20bc8002dc739c1ce571b65ae296ade245a9e5c6b69692c2c81ee587bf5b6"
+      },
+      {
+        "path": "kernel/crates/vah-search-wasm/Cargo.toml",
+        "sha256": "83105e6261fda2449ceb954e14db244d9b627cb7e11490339bab3721c88cee56"
+      },
+      {
+        "path": "kernel/crates/vah-search-wasm/src/bin/vah-worker.rs",
+        "sha256": "57eb43880756d75c70d4ed4536781447d878e346a67eff760f9aacf57b4505c9"
+      },
+      {
+        "path": "kernel/crates/vah-search-wasm/src/generation.rs",
+        "sha256": "f46e29f6a32771d73900f37ef6de557ba65dfe5102b783d4f3136771ce27aff8"
+      },
+      {
+        "path": "kernel/crates/vah-search-wasm/src/lib.rs",
+        "sha256": "4e0daa5a16f4184e13c91fb741b470c2a5d5fe543c0b319e7d7888ece9abfcb5"
+      },
+      {
+        "path": "kernel/crates/vah-search/Cargo.toml",
+        "sha256": "80607082fed93f150e0ded562d430094088f998531faf1678c7bfe85a7d9f418"
+      },
+      {
+        "path": "kernel/crates/vah-search/src/lib.rs",
+        "sha256": "bda4edfc2f02178c11aaf077b0f0bf4ab414ee66b94556b214df505525c8659c"
+      },
+      {
+        "path": "kernel/crates/vah-search/src/main.rs",
+        "sha256": "53efead0d75b63cc93d1ff1a61158e16d99b9835f592b71c7cc28efd2cf5e4a4"
+      },
+      {
+        "path": "kernel/crates/vah-search/src/naibbe.rs",
+        "sha256": "0385e3fb8ded7332468e3bea6dbd98407ba40f1742591446d9fbf4a699747b10"
+      },
+      {
+        "path": "kernel/crates/vah-stats/Cargo.toml",
+        "sha256": "7e189c95728ef0ecebb65088ce34bc52863f69b12383791cd0b0a41b2cfdae00"
+      },
+      {
+        "path": "kernel/crates/vah-stats/src/candidates.rs",
+        "sha256": "7b8a56f1824b4507b729f8bc16dc2586b8e6644c4be094aa7822fcc9f262ad62"
+      },
+      {
+        "path": "kernel/crates/vah-stats/src/lib.rs",
+        "sha256": "3921ee49ccd6930d5e5510faaeccfc2b2767c65040d2d957c7ae92ec244b49ae"
+      },
+      {
+        "path": "kernel/crates/vah-wasm/Cargo.toml",
+        "sha256": "5094754e5b840cd5a7351df51b5a99ce305fa2ea9f82f62287a0c8789cc79cbc"
+      },
+      {
+        "path": "kernel/crates/vah-wasm/src/lib.rs",
+        "sha256": "d134f7c5953a3c2ccdd65a87f521019a5e17558442f00e15740bc64bded8ac05"
+      },
+      {
+        "path": "kernel/rust-toolchain.toml",
+        "sha256": "9754915ed6e88256a6fb2fe9c2637d07ea7f1bddbf58a967eb90e03da2d9bfb4"
+      },
+      {
+        "path": "third_party/naibbe/references/naibbe_tables.csv",
+        "sha256": "4e7cfd54b7ec66515d39a51e11ec97e8e19b643b0b189124eebc3982e707dcec"
+      }
+    ]
+  }
+}

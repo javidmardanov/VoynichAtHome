@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "display_name": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 48,
+      "pattern": "^[\\p{L}\\p{N} ._'’-]+$"
+    },
+    "public": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "display_name",
+    "public"
+  ],
+  "additionalProperties": false,
+  "$id": "urn:voynich:contracts:v1:profile-update",
+  "x-semantic-validation": "See platform/src/lib/contracts.ts and the Rust kernel; schema alone does not establish valid identities, scores, or execution."
+}

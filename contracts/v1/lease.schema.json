@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "state": {
+      "type": "string",
+      "const": "work"
+    },
+    "version": {
+      "type": "string",
+      "const": "vah-lease-1"
+    },
+    "attempt_id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+    },
+    "unit_id": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "expires_at": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "work": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "const": "vah-work-1"
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "generation",
+            "search",
+            "verification"
+          ]
+        },
+        "experiment_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "input_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "algorithm": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+        },
+        "numeric_profile": {
+          "type": "string",
+          "enum": [
+            "wasm32-ieee754-libm-scalar-v1",
+            "integer-ngram-libm-v1"
+          ]
+        },
+        "release_id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+        },
+        "seed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "start": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967295
+        },
+        "budget": {
+          "type": "object",
+          "properties": {
+            "evaluations": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100000
+            },
+            "max_input_bytes": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 8000000
+            },
+            "max_memory_bytes": {
+              "type": "integer",
+              "minimum": 1048576,
+              "maximum": 100663296
+            }
+          },
+          "required": [
+            "evaluations",
+            "max_input_bytes",
+            "max_memory_bytes"
+          ],
+          "additionalProperties": false
+        },
+        "work_estimate": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 2000000
+        }
+      },
+      "required": [
+        "version",
+        "type",
+        "experiment_digest",
+        "input_digest",
+        "algorithm",
+        "numeric_profile",
+        "release_id",
+        "seed",
+        "start",
+        "budget",
+        "work_estimate"
+      ],
+      "additionalProperties": false
+    },
+    "input_url": {
+      "type": "string",
+      "pattern": "^\\/api\\/v1\\/work\\/[a-zA-Z0-9_-]+$"
+    },
+    "release": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]{1,100}$"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^\\/kernels\\/[0-9a-f]{64}\\.wasm$"
+        }
+      },
+      "required": [
+        "id",
+        "digest",
+        "url"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "state",
+    "version",
+    "attempt_id",
+    "unit_id",
+    "expires_at",
+    "work",
+    "input_url",
+    "release"
+  ],
+  "additionalProperties": false,
+  "$id": "urn:voynich:contracts:v1:lease",
+  "x-semantic-validation": "See platform/src/lib/contracts.ts and the Rust kernel; schema alone does not establish valid identities, scores, or execution."
+}
