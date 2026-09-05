@@ -15,6 +15,7 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=8.3,<9"]
+research = ["psutil==7.2.1"]
 
 [project.scripts]
 vah = "voynich_at_home.cli:main"

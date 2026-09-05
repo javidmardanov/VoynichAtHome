@@ -1,41 +1,22 @@
-# Voynich@Home — who we are looking for, and what exists today
+# Join Voynich@home
 
-*One page for people we ask to join. Plain language, bounded claims. Russian version: `RECRUITING.ru.md`.*
+[Русская версия](RECRUITING.ru.md) · [Current design](DESIGN.md) · [Release evidence](RELEASE-STATUS.md)
 
-## The project in five sentences
+Voynich@home builds tools to test explanations of the Voynich manuscript and publish reproducible evidence. Our first research program measures whether search methods recover known Latin and Italian messages under declared encodings. These languages are a starting scope, not a claim about the manuscript's language. A decipherment is a possible research outcome, not a release promise.
 
-The Voynich manuscript is a 15th-century book in an unreadable script. Its text has statistical properties that no proposed explanation has been shown to reproduce across its parameter space. We are building an open, reproducible engine that implements the proposed text-generation mechanisms, sweeps their parameters, and tests each against a registered statistical fingerprint of the manuscript. The output is a bounded map: which mechanisms, in which parameter regions, are statistically compatible with the manuscript, and which are not. We do not claim, and do not expect, to decipher the manuscript.
+The repository contains a deterministic Rust/WebAssembly kernel, bounded search and replay, a browser interface, a coordinator with checked contributions, optional profiles and teams, and a native volunteer client. Automated local browser and operating tests pass. The hosted owner preview has assignments disabled. Full recovery evaluation, actual Google/GitHub sign-in configuration, and deployed operating rehearsals remain acceptance gates. Check the dated release evidence before describing the current status to others.
 
-## What exists (September 2026)
+## Work that would help
 
-- A Rust science kernel: a parser for the standard transliteration format, a 30-statistic fingerprint, four deterministic generator families, content-addressed work units, and a WebAssembly build that produces bit-identical results to the native build (checked by golden vectors and randomised parity in CI).
-- A pipeline that turns the Zandbergen–Landini transliteration into a target, with whole-quire discovery / validation / confirmation partitions.
-- Gate 2 tooling: parameter sweeps with complete ledgers, planted pseudo-manuscripts, and calibration of acceptance rules. First calibration: a planted parameter point was recovered uniquely on an 81-point grid, all controls rejected.
-- A merged design document produced by two independent AI systems in review of each other, with a registered-experiment protocol, claim tiers and named human roles.
-- Measured cost: one simulation takes under 0.1 s. The first experiment fits on one machine in a night. Volunteer computing is not needed for it; a browser verification page lets anyone reproduce a published unit.
+- **Statistics and search methods:** review recovery measurements, equal-budget controls, source splits, and false readings. The earlier Rule C error guarantee was withdrawn; read the [acceptance-rule review](research/acceptance-rule-review.md).
+- **Language and manuscript expertise:** inspect Latin and Italian resource suitability, normalization, transcription uncertainty, and faithful implementation of published encodings. Earlier whole-manuscript exposure is disclosed; existing manuscript results are exploratory.
+- **Software and security:** test independent reproduction, browser resource controls, accessibility, session handling, and backup restoration. Useful tasks and local setup are in [CONTRIBUTING](../CONTRIBUTING.md).
+- **External reproduction:** rerun recorded experiments and report discrepancies with exact versions. A reviewer or independent benchmark administrator is named only after that person agrees and actually performs the role.
 
-Everything is public: `https://github.com/javidmardanov/VoynichAtHome`, branch `claude/voynich-at-home-sotqwg`.
+The human owner currently controls releases. We do not claim an established external review board or independently administered benchmark. Initial answers are hidden from the search program but controlled by the same project that develops it.
 
-## What we are not
+## Participation
 
-- Not a decipherment project. Any result is "compatible with the registered summaries" or "not compatible", never "this is how the manuscript was made".
-- Not a token, a coin, or a data-collection scheme. No accounts are needed to verify a unit.
-- Not a finished platform. The public volunteer tier is built only if a registered workload needs it.
+Browser computation begins only after Start, uses a conservative default, and can be stopped immediately. An account is optional. Credit follows result checks and estimates work; it does not measure scientific correctness. A completed campaign stops issuing work. Public volunteering opens after the relevant release gates and owner decision, with a justified recovery study if harder encodings remain beyond the search method's demonstrated ability.
 
-## Three people we need
-
-**1. Statistical-methods lead.** The most important missing person. You would own Gate 2: the acceptance rule (a tail-robust median rule is the current candidate), the number of replicates, the threshold, the treatment of correlated statistics, and the registration text. The tooling, the ledgers and a written recommendation are waiting for you. Time: a few hours a week for two months, then review time.
-
-**2. Voynich or corpus specialist.** You would check that each generator is a faithful implementation of the published theory (self-citation, table-and-grille, verbose cipher, slot grammar), choose the transcription views, and be our contact with the research community. Time: a few hours a month, more around registration.
-
-**3. Independent custodian.** You hold the sequestered seeds and planted answers, publish a commitment hash before calibration and reveal the manifest afterwards. You must not be an implementer or a repository administrator. Time: a few hours in total.
-
-Also welcome: a security reviewer for the browser tier, and a second external scientific advisor for the public-launch decision.
-
-## Pilot participants (later)
-
-If a registered workload ever needs volunteer computing, we will invite twenty people first. Participation means opening a web page, pressing a button, and letting your browser compute while you watch a meter. Consent before computation, pause any time, no install, no account. We will ask for an explicit commitment before we build the coordinator, not after.
-
-## How to say yes
-
-Open an issue on the repository, or write to the owner. Say which role, how much time, and what you want to see first. We will answer with the current open questions for that role.
+Use the [experiment proposal form](https://github.com/javidmardanov/VoynichAtHome/issues/new/choose) for a proposed study, or open a source issue describing the contribution you can make. No fixed time commitment is required. Current implementation review: [pull request 1](https://github.com/javidmardanov/VoynichAtHome/pull/1).

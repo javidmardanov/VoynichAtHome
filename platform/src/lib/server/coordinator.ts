@@ -1,5 +1,6 @@
 import { identity, sha256, Submission, Work, Campaign, validateSearchWork } from '../contracts';
 import type { D1Database } from '@cloudflare/workers-types';
+import { requireRecoveryEvidence } from './reports';
 
 export class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
 export type Guest = { id: string; user_id: string | null; blocked: number };
@@ -193,7 +194,19 @@ export async function maintain(env: Env, run: Runner) {
 
 export async function addCampaign(env: Env, manifest: unknown) {
   const parsed=Campaign.parse(manifest);
-  if (parsed.kind==='manuscript' && parsed.recovery_evidence.length===0) throw new ApiError(422,'Manuscript campaigns require published recovery evidence.');
+  if (parsed.kind==='manuscript') {
+    await requireRecoveryEvidence(env,parsed.recovery_evidence,parsed.methods,parsed.search_condition);
+    if(parsed.methods.length!==1||parsed.methods[0]!==parsed.search_condition!.algorithm||parsed.max_units>parsed.search_condition!.starts)
+      throw new ApiError(422,'Keep the manuscript campaign within the reviewed total start budget and algorithm.');
+    const layout=parsed.manuscript_layout;
+    if(!layout||!parsed.source_digests.includes(layout.transcription_digest))throw new ApiError(422,'Preserve the declared transcription and manuscript layout.');
+    let position=0;
+    for(const line of layout.lines){
+      if(line.offset!==position||line.uncertain_positions.some(p=>p<line.offset||p>=line.offset+line.length))throw new ApiError(422,'Line boundaries or uncertain symbol positions disagree.');
+      position+=line.length;
+    }
+    if(position!==parsed.search_condition!.length)throw new ApiError(422,'The layout does not cover the declared passage.');
+  }
   const digest=await identity(parsed);
   await env.DB.prepare(`INSERT INTO campaigns (id,title,question,manifest_digest,manifest,status,scientific_status,created_at,updated_at) VALUES (?,?,?,?,?,'draft','computation',?,?)`).bind(parsed.id,parsed.title,parsed.question,digest,JSON.stringify(parsed),now(),now()).run();
   return {id:parsed.id,digest,status:'draft'};
@@ -204,6 +217,14 @@ export async function addUnit(env: Env, campaignId: string, specification: unkno
   if (!Number.isSafeInteger(reserveMs) || reserveMs<1 || reserveMs>30000) throw new ApiError(422,'Invalid trusted computation reserve.');
   const campaign=await env.DB.prepare('SELECT manifest_digest,status,manifest FROM campaigns WHERE id=?').bind(campaignId).first<{manifest_digest:string;status:string;manifest:string}>();
   if (!campaign || campaign.status!=='draft' || work.experiment_digest!==campaign.manifest_digest) throw new ApiError(409,'Units can only be imported into their draft campaign.');
+  const declared=Campaign.parse(JSON.parse(campaign.manifest));
+  if(declared.kind==='manuscript'){
+    await requireRecoveryEvidence(env,declared.recovery_evidence,declared.methods,declared.search_condition);
+    const condition=declared.search_condition!,job=validateSearchWork(work,input);
+    if(job.encoding!==(condition.encoding==='naibbe-global-permutation'?'substitution':condition.encoding)||job.algorithm!==condition.algorithm||job.ciphertext.length!==condition.length
+      ||job.iterations!==condition.iterations||job.beam_width!==condition.beam_width||job.start>=condition.starts||await identity(job.model)!==condition.model_digest
+      ||await identity(job.ciphertext)!==declared.manuscript_layout?.ciphertext_digest)throw new ApiError(422,'Manuscript work lies outside the reviewed recovery condition or passage.');
+  }
   const bytes=new TextEncoder().encode(JSON.stringify(input));
   if (bytes.length>work.budget.max_input_bytes || await identity(input)!==work.input_digest) throw new ApiError(422,'Input does not match its specification.');
   const inputKey='inputs/'+work.input_digest.slice(7)+'.json';

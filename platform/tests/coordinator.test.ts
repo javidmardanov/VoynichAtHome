@@ -7,7 +7,10 @@ import { identity } from '../src/lib/contracts';
 import { createAuth } from '../src/lib/server/auth';
 import { saveProfile, changeTeam, directory } from '../src/lib/server/community';
 import { serializeSignedCookie } from 'better-call';
-import { backup, restore } from '../src/lib/server/backup';
+import { backup, restore, portableBackup, portableObject, importBackupObject } from '../src/lib/server/backup';
+import { publishReport, requireRecoveryEvidence } from '../src/lib/server/reports';
+import { instantiateKernel } from '../src/lib/wasm';
+import kernelRelease from '../src/lib/generated/kernel.json';
 
 let mf: Miniflare, env: Env;
 const output={version:'test-result',score:123};
@@ -40,6 +43,50 @@ async function work(g:Awaited<ReturnType<typeof guest>>) {
   return w as {state:'work';attempt_id:string;unit_id:string};
 }
 const body=(w:{attempt_id:string;unit_id:string},result=output)=>({version:'vah-submission-1',attempt_id:w.attempt_id,unit_id:w.unit_id,result});
+
+test('reports require completed work, recompute scores, and cannot invent a reviewed conclusion',async()=>{
+  const job=JSON.parse(await readFile('tests/fixtures/search-job.json','utf8'));
+  env.SEARCH_KERNEL=await WebAssembly.compile(await readFile('src/lib/generated/search.wasm'));
+  const result=instantiateKernel(env.SEARCH_KERNEL)({op:'run',job});
+  const campaignDigest=await identity({campaign:'test'}),inputDigest=await identity(job),unitId=await identity({reportUnit:1});
+  await env.DB.prepare('UPDATE campaigns SET manifest_digest=? WHERE id=?').bind(campaignDigest,'test').run();
+  await env.DB.prepare('INSERT INTO releases (id,module_digest,module_path,provenance,created_at) VALUES (?,?,?,?,?)').bind(kernelRelease.id,kernelRelease.digest,kernelRelease.url,'{}',now()).run();
+  await env.RESEARCH.put('inputs/'+inputDigest.slice(7)+'.json',JSON.stringify(job));
+  await env.DB.prepare(`INSERT INTO units (id,campaign_id,release_id,specification,input_digest,input_key,state,credit,reserve_ms,trusted_result,trusted_hash,created_at)
+    VALUES (?,'test',?,'{}',?,?,'complete',1,30000,?,?,?)`).bind(unitId,kernelRelease.id,inputDigest,'inputs/'+inputDigest.slice(7)+'.json',JSON.stringify(result),await identity(result),now()).run();
+  const report={version:'vah-scientific-report-1',campaign_digest:campaignDigest,title:'Reproduction software test',tier:'computation',summary:'This fixture only demonstrates checked software execution.',
+    limitations:['This is a public software fixture, not concealed research.'],evidence_url:'https://example.test/fixture',record_ids:[unitId],comparison_assessment:'The native result matches the recorded WebAssembly result.',reviews:[],recovery_scope:[],owner_attests_evidence_reviewed:true};
+  await expect(publishReport(env,report)).rejects.toThrow('Finish');
+  await env.DB.prepare("UPDATE campaigns SET status='completed' WHERE id='test'").run();
+  await expect(publishReport(env,{...report,tier:'conclusion'})).rejects.toThrow('review records');
+  const published=await publishReport(env,report);expect(published.tier).toBe('computation');
+  await expect(requireRecoveryEvidence(env,[published.digest],['restart-anneal-v1'])).rejects.toThrow('operating range');
+  await expect(requireRecoveryEvidence(env,['sha256:'+'f'.repeat(64)],['restart-anneal-v1'])).rejects.toThrow('missing');
+  const forged={...result,score:0};
+  await env.DB.prepare('UPDATE units SET trusted_result=?,trusted_hash=? WHERE id=?').bind(JSON.stringify(forged),await identity(forged),unitId).run();
+  await expect(publishReport(env,{...report,title:'Forged score attempt'})).rejects.toThrow();
+});
+
+test('manuscript admission binds the reviewed model, passage layout and total computation budget',async()=>{
+  const base=JSON.parse(await readFile('tests/fixtures/search-job.json','utf8'));
+  const condition={encoding:base.encoding,language:'latin',length:base.ciphertext.length,starts:8,iterations:base.iterations,algorithm:base.algorithm,beam_width:base.beam_width,model_digest:await identity(base.model)};
+  const report={version:'vah-scientific-report-1',campaign_digest:await identity({testCampaign:1}),title:'Synthetic eligibility fixture',tier:'computation',summary:'A fixture for testing admission rules, with no real scientific evidence.',
+    limitations:['All numbers here are software test fixtures.'],evidence_url:'https://example.test/fixture',record_ids:[await identity({testUnit:1})],comparison_assessment:'This is test data for a contract check, not research.',reviews:[],owner_attests_evidence_reviewed:true,
+    recovery_scope:[{...condition,cases:100,exact_recoveries:100,evaluation_digest:await identity({fixture:'evaluation'}),freeze_url:'https://example.test/freeze',usefulness_rationale:'Synthetic fields used only to test bounded admission; no actual recovery-rate assertion.'}]};
+  const reportDigest=await identity(report);
+  await env.DB.prepare("UPDATE campaigns SET status='completed',manifest=? WHERE id='test'").bind(JSON.stringify({kind:'recovery',methods:[base.algorithm]})).run();
+  await env.DB.prepare('INSERT INTO reports (digest,campaign_id,tier,title,document,created_at) VALUES (?,?,?,?,?,?)').bind(reportDigest,'test','computation',report.title,JSON.stringify(report),now()).run();
+  const manifest={version:'vah-campaign-1',id:'bounded',title:'Bounded manuscript fixture',question:'Does admission enforce the exact reviewed condition?',kind:'manuscript',protocol_url:'https://example.test/protocol',source_digests:base.model.training_sources,methods:[base.algorithm],metric:'Fixed search score',comparisons:['Matched controls'],stopping_rule:'Only the declared eight start budget.',exposure:'Synthetic software fixture only, not manuscript research.',recovery_evidence:[reportDigest],max_units:8,interpretation:'Operational admission fixture, not evidence about the manuscript.',search_condition:condition,
+    manuscript_layout:{transcription_digest:base.model.training_sources[0],ciphertext_digest:await identity(base.ciphertext),symbol_grouping:'One declared symbol per position.',space_handling:'Spaces omitted by the fixture.',lines:[{folio:'fixture',paragraph:'1',line:'1',offset:0,length:base.ciphertext.length,uncertain_positions:[]}],excluded_material:[]}};
+  await expect(addCampaign(env,{...manifest,search_condition:{...condition,language:'italian'}})).rejects.toThrow('exact encoding');
+  await expect(addCampaign(env,{...manifest,max_units:64})).rejects.toThrow('total start budget');
+  const campaign=await addCampaign(env,manifest);
+  const job={...base,experiment:campaign.digest,start:8};
+  const work={version:'vah-work-1',type:'search',experiment_digest:campaign.digest,input_digest:await identity(job),algorithm:job.algorithm,numeric_profile:'integer-ngram-libm-v1',release_id:'test',seed:job.seed,start:8,budget:{evaluations:job.iterations,max_input_bytes:8000000,max_memory_bytes:100663296},work_estimate:Math.ceil(job.iterations*job.ciphertext.length/1000)};
+  await expect(addUnit(env,campaign.id,work,job,100)).rejects.toThrow('outside');
+  await env.DB.prepare('UPDATE reports SET withdrawn=1 WHERE digest=?').bind(reportDigest).run();
+  await expect(requireRecoveryEvidence(env,[reportDigest],[base.algorithm],condition)).rejects.toThrow('withdrawn');
+});
 
 test('25 simultaneous clients obtain bounded work; overload waits without spending reserves',async()=>{
   await addUnits(20);
@@ -150,6 +197,28 @@ test('restoration is atomic, revokes sessions, and reapplies deletion tombstones
   expect((await env.DB.prepare('SELECT user_id,token_hash FROM guests WHERE id=?').bind(g.id).first())).toEqual({user_id:null,token_hash:null});
   expect((await env.DB.prepare('SELECT stopped FROM controls').first())?.stopped).toBe(1);
   expect((await directory(env)).people).toHaveLength(0);
+});
+
+test('portable backup restores missing research objects and rejects corruption before changing D1',async()=>{
+  await addUnits(1);
+  const input={fixture:0},inputDigest=await identity(input),inputKey='inputs/'+inputDigest.slice(7)+'.json';
+  await env.RESEARCH.put(inputKey,JSON.stringify(input));
+  await env.DB.prepare('UPDATE units SET input_key=?').bind(inputKey).run();
+  const bundle=await portableBackup(env);
+  expect(bundle.manifest.objects.map(o=>o.key)).toContain(inputKey);
+  await expect(portableObject(env,bundle.digest.slice(7),'deletions/unlisted.json')).rejects.toThrow('outside');
+  const item=bundle.manifest.objects.find(o=>o.key===inputKey)!;
+  const exported=await portableObject(env,bundle.digest.slice(7),inputKey);
+  expect(await exported.json()).toEqual(input);
+  await env.RESEARCH.delete(inputKey);
+  env.DEPLOYMENT_STAGE='staging';env.ASSIGNMENTS_ENABLED='false';await env.DB.prepare('UPDATE controls SET stopped=1').run();
+  await expect(restore(env,bundle.manifest.database_key)).rejects.toThrow('research objects');
+  expect((await env.DB.prepare('SELECT COUNT(*) n FROM units').first())?.n).toBe(1);
+  await expect(importBackupObject(env,{key:inputKey,digest:item.digest,value:{fixture:99}})).rejects.toThrow('bytes differ');
+  const duplicates=await Promise.all([importBackupObject(env,{key:inputKey,digest:item.digest,value:input}),importBackupObject(env,{key:inputKey,digest:item.digest,value:input})]);
+  expect(duplicates.every(r=>r.imported)).toBe(true);
+  await restore(env,bundle.manifest.database_key);
+  expect((await env.DB.prepare('SELECT COUNT(*) n FROM units').first())?.n).toBe(1);
 });
 
 test('unfinished validation reserves carry across months once, and every replay retry is funded',async()=>{

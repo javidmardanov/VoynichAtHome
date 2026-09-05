@@ -29,11 +29,12 @@ catch{throw Error('This state directory is locked. Stop its other worker before 
 async function save(){const file=resolve(folder,'state.json');await writeFile(file+'.next',JSON.stringify(saved),{mode:0o600});await rename(file+'.next',file);}
 async function request(path:string,payload?:unknown){
   const url=new URL(path,origin);if(url.origin!==origin.origin)throw Error('Refusing a cross-origin work URL.');
-  const response=await fetch(url,{method:payload===undefined?'GET':'POST',redirect:'error',signal:signal.signal,
+  const response=await fetch(url,{method:payload===undefined?'GET':'POST',redirect:'error',signal:AbortSignal.any([signal.signal,AbortSignal.timeout(30000)]),
     headers:{origin:origin.origin,...(saved.token?{authorization:'Bearer '+saved.token}:{}),...(payload===undefined?{}:{'content-type':'application/json'})},body:payload===undefined?undefined:JSON.stringify(payload)});
   const reader=response.body?.getReader();let size=0;const chunks:Uint8Array[]=[];
   if(reader)for(;;){const part=await reader.read();if(part.done)break;size+=part.value.length;if(size>8000000){await reader.cancel();throw Error('Response exceeds the input limit.');}chunks.push(part.value);}
   const bytes=new Uint8Array(size);let at=0;for(const chunk of chunks){bytes.set(chunk,at);at+=chunk.length;}
+  if(response.status===401)throw Error('This guest session expired or was revoked. Saved work is retained. Use a separate state directory for new participation; keep this directory if you need to investigate an unsent result.');
   if(!response.ok)throw Error('Coordinator returned HTTP '+response.status+'. Saved work has been retained.');
   if(path==='/api/v1/guest'&&!saved.token){
     const cookie=response.headers.getSetCookie().find(c=>c.startsWith('vah_guest='));const token=cookie?.split(';')[0].slice(10);

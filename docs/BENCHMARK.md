@@ -1,5 +1,7 @@
 # Benchmark: does the first experiment need volunteer computing?
 
+Historical benchmark of the earlier generator workload and source revision. It is not a benchmark of the recovery search or the hosted coordinator. The manuscript had already been exposed during development; the partition labels below do not establish independent confirmation. See the [current recovery program](../research/recovery/PANEL.md) and [scientific corrections](SCIENTIFIC-CORRECTIONS.md).
+
 *Answers the second go/no-go test from the second review ("benchmark the complete proposed search and demonstrate what volunteer scale adds"). Measured on 2026-09-02 with the draft 2 kernel (commit f180e24). Reproduce with the commands at the end.*
 
 ## What one simulation costs

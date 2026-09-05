@@ -1,5 +1,7 @@
 # Computational Voynich Research: Findings for Workload Selection
 
+Historical research notes for the earlier generator-first proposal. The [current design](../DESIGN.md) and [scientific corrections](../SCIENTIFIC-CORRECTIONS.md) supersede its recommendations. Its literature survey is not exhaustive; broad statements about absent prior work are not established findings.
+
 *Web-research report compiled 2026-08-30 for the Voynich@Home proposal. Every load-bearing claim carries its source URL.*
 
 ## 1. The statistical fingerprint any model must explain

@@ -1,5 +1,7 @@
 # Distribution Options for a Volunteer-Compute Platform (August 2026)
 
+Historical option review. The accepted implementation uses Rust/WebAssembly, SvelteKit, Cloudflare, and Better Auth as specified in the [current design](../DESIGN.md). Earlier technology recommendations and operating assumptions below do not override that design.
+
 *Web-research report compiled 2026-08-30 for the Voynich@Home proposal. Every load-bearing claim carries its source URL.*
 
 > **Correction (draft 2 of the merged design).** The conclusion drawn from the ODLK2025 case in this review was too strong. BOINC's official project guidance says projects are vetted and that attracting volunteers is a major obstacle; ODLK2025 is one documented refusal that cited maturity and perceived overlap. The supported statement is "listing is uncertain for a new small project", not "BOINC denies listings to new small projects", and no measured figure supports "installer friction cuts reach by an order of magnitude".

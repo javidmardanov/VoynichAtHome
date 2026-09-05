@@ -7,6 +7,7 @@ import { profile, saveProfile, directory, changeTeam } from '$lib/server/communi
 import { ownerAction } from '$lib/server/owner';
 import { trustedRun } from '$lib/server/runner';
 import { sha256 } from '$lib/contracts';
+import { portableObject } from '$lib/server/backup';
 async function body(request:Request) {
   if(!request.headers.get('content-type')?.startsWith('application/json'))throw new ApiError(415,'Use application/json.');
   const reader=request.body?.getReader();if(!reader)throw new ApiError(400,'A JSON body is required.');
@@ -31,6 +32,8 @@ const handler:RequestHandler=async(event)=>{
       if(guest)await rate(env.DB,'app:guest:'+guest.id,60,60);
     }
     if(path==='status'&&!mutating)return json(await status(env));
+    if(path==='reports'&&!mutating)return json((await env.DB.prepare('SELECT digest,campaign_id,tier,title,withdrawn,withdrawal_reason,created_at FROM reports ORDER BY created_at DESC LIMIT 100').all()).results);
+    if(path.startsWith('reports/')&&!mutating){const report=await env.DB.prepare('SELECT * FROM reports WHERE digest=?').bind('sha256:'+path.slice(8)).first();if(!report)throw new ApiError(404,'Report not found.');return json(report);}
     if(path==='community'&&!mutating)return json(await directory(env));
     if(path==='me'&&!mutating)return json({user:locals.user?{id:locals.user.id,name:locals.user.name}:null,owner:locals.owner,guest:!!guest,providers:configuredProviders(env),contributions:await contributions(env.DB,guest,locals.user?.id??null),...(locals.user?await profile(env,locals.user.id):{})});
     if(path==='guest'&&request.method==='POST'){
@@ -53,6 +56,7 @@ const handler:RequestHandler=async(event)=>{
     if(path==='profile'&&request.method==='POST'){if(!locals.user)throw new ApiError(401,'Sign in to edit a profile.');return json(await saveProfile(env,locals.user.id,await body(request)));}
     if(path==='team'&&request.method==='POST'){if(!locals.user)throw new ApiError(401,'Sign in to join a team.');return json(await changeTeam(env,locals.user.id,await body(request)));}
     if(path==='owner'&&request.method==='POST'){if(!locals.owner||!locals.user)throw new ApiError(403,'Owner access required.');return json(await ownerAction(env,locals.user.id,await body(request)));}
+    if(path.startsWith('owner/backup/')&&!mutating){if(!locals.owner)throw new ApiError(403,'Owner access required.');return portableObject(env,path.slice('owner/backup/'.length),url.searchParams.get('key')??'');}
     if(path==='owner/validate'&&request.method==='POST'){if(!locals.owner)throw new ApiError(403,'Owner access required.');platform.context.waitUntil(maintain(env,(input,releaseId)=>trustedRun(env,input,releaseId)));return json({queued:true});}
     if(path==='owner'&&!mutating){if(!locals.owner)throw new ApiError(403,'Owner access required.');
       const [campaigns,releases,errors,audit]=await Promise.all([

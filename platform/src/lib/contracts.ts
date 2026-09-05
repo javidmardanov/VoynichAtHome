@@ -26,6 +26,7 @@ export type SearchJob = z.infer<typeof SearchJob>;
 export const SearchResult = z.object({version:z.literal('vah-search-result-1'),job_digest:Digest,algorithm:z.enum(['beam-v1','restart-anneal-v1']),
   key:z.array(z.number().int().min(0).max(22)).min(2).max(92),plaintext:z.string().min(4).max(20000).regex(/^[abcdefghilmnopqrstuvxyz]+$/),
   score:z.number().int().min(-20000000000).max(0),evaluations:z.number().int().min(0).max(100000),trace:z.array(Digest).max(1000),result_digest:Digest}).strict();
+export type SearchResult=z.infer<typeof SearchResult>;
 export const Release = z.object({id:Identifier,digest:Digest,url:z.string().regex(/^\/kernels\/[0-9a-f]{64}\.wasm$/)}).strict();
 export const Lease = z.object({state:z.literal('work'),version:z.literal('vah-lease-1'),attempt_id:Identifier,unit_id:Digest,expires_at:z.number().int().nonnegative(),work:Work,
   input_url:z.string().regex(/^\/api\/v1\/work\/[a-zA-Z0-9_-]+$/),release:Release}).strict();
@@ -45,15 +46,39 @@ export function validateSearchWork(work: Work, input: unknown) {
   return job;
 }
 export const Submission = z.object({ version: z.literal('vah-submission-1'), attempt_id: Identifier, unit_id: Digest, result: z.record(z.string(),z.unknown()) }).strict();
+export const RecoveryCondition=z.object({encoding:z.enum(['substitution','balanced-homophonic','naibbe-global-permutation']),language:z.enum(['latin','italian']),
+  length:z.union([z.literal(1000),z.literal(5000),z.literal(20000)]),starts:z.union([z.literal(1),z.literal(8),z.literal(64)]),iterations:z.number().int().min(1).max(100000),
+  algorithm:z.enum(['beam-v1','restart-anneal-v1']),beam_width:z.number().int().min(1).max(64),model_digest:Digest}).strict();
 export const Campaign = z.object({
   version: z.literal('vah-campaign-1'), id: Identifier, title: z.string().min(5).max(120), question: z.string().min(10).max(500),
   kind: z.enum(['recovery','generator-test','manuscript']), protocol_url: z.string().url(), source_digests: z.array(Digest).min(1),
   methods: z.array(Identifier).min(1), metric: z.string().min(1).max(200), comparisons: z.array(z.string().min(1).max(200)).min(1),
   stopping_rule: z.string().min(10).max(500), exposure: z.string().min(10).max(1000),
   recovery_evidence: z.array(Digest), max_units: z.number().int().min(1).max(100000),
-  interpretation: z.string().min(10).max(1000)
+  interpretation: z.string().min(10).max(1000),
+  search_condition:RecoveryCondition.optional(),
+  manuscript_layout:z.object({transcription_digest:Digest,ciphertext_digest:Digest,symbol_grouping:z.string().min(10).max(1000),space_handling:z.string().min(5).max(1000),
+    lines:z.array(z.object({folio:z.string().min(1).max(30),paragraph:z.string().min(1).max(50),line:z.string().min(1).max(50),offset:z.number().int().min(0).max(19999),length:z.number().int().min(1).max(20000),uncertain_positions:z.array(z.number().int().min(0).max(19999))}).strict()).min(1).max(2000),
+    excluded_material:z.array(z.string().min(1).max(1000)).max(1000)}).strict().optional()
 }).strict();
 export type Campaign = z.infer<typeof Campaign>;
+const EvidenceURL=z.string().url().startsWith('https://').max(1000);
+export const ScientificReport=z.object({
+  version:z.literal('vah-scientific-report-1'),campaign_digest:Digest,title:z.string().min(5).max(120),
+  tier:z.enum(['computation','candidate','conclusion']),summary:z.string().min(30).max(3000),
+  limitations:z.array(z.string().min(10).max(1000)).min(1).max(20),evidence_url:EvidenceURL,
+  record_ids:z.array(Digest).min(1).max(20),comparison_assessment:z.string().min(30).max(3000),
+  reviews:z.array(z.object({name:z.string().min(2).max(100),role:z.enum(['owner','external-reproduction','specialist']),record_url:EvidenceURL}).strict()).max(20),
+  recovery_scope:z.array(RecoveryCondition.extend({
+    cases:z.literal(100),exact_recoveries:z.number().int().min(1).max(100),evaluation_digest:Digest,freeze_url:EvidenceURL,
+    usefulness_rationale:z.string().min(40).max(2000)}).strict()).max(100),
+  owner_attests_evidence_reviewed:z.literal(true)
+}).strict().superRefine((report,ctx)=>{
+  if(new Set(report.record_ids).size!==report.record_ids.length)ctx.addIssue({code:'custom',message:'Duplicate report records.'});
+  if(report.tier!=='computation'&&(!report.reviews.some(r=>r.role==='external-reproduction')||!report.reviews.some(r=>r.role==='specialist')))
+    ctx.addIssue({code:'custom',message:'Promotion requires linked external reproduction and specialist review records.'});
+});
+export type ScientificReport=z.infer<typeof ScientificReport>;
 
 export function canonical(value: unknown): string {
   if (value === null || typeof value === 'boolean') return JSON.stringify(value);

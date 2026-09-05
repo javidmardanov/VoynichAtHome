@@ -49,6 +49,11 @@ export const campaigns = sqliteTable('campaigns', {
 export const releases = sqliteTable('releases', {
   id: text('id').primaryKey(), moduleDigest: text('module_digest').notNull(), modulePath: text('module_path').notNull(), state: text('state').notNull().default('approved'), provenance: text('provenance').notNull(), createdAt: integer('created_at').notNull()
 });
+export const reports = sqliteTable('reports', {
+  digest:text('digest').primaryKey(),campaignId:text('campaign_id').notNull().references(()=>campaigns.id),
+  tier:text('tier').notNull(),title:text('title').notNull(),document:text('document').notNull(),
+  withdrawn:integer('withdrawn').notNull().default(0),withdrawalReason:text('withdrawal_reason'),createdAt:integer('created_at').notNull()
+},t=>[index('reports_campaign_idx').on(t.campaignId)]);
 export const units = sqliteTable('units', {
   id: text('id').primaryKey(), campaignId: text('campaign_id').notNull().references(() => campaigns.id), releaseId: text('release_id').notNull().references(() => releases.id),
   specification: text('specification').notNull(), inputDigest: text('input_digest').notNull(), inputKey: text('input_key').notNull(),

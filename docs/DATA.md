@@ -170,7 +170,7 @@ Historical comparison data needs the same rigor as the manuscript:
 - record language, date range, region, genre, script/transcription, editorial
   normalization, and rights;
 - separate plaintext from cipher generation and noise generation;
-- keep confirmation keys and seeds with independent benchmark custodians;
+- keep original messages and encoding keys outside search-worker inputs; the initial project-controlled evaluation is concealed from the program, not independently administered. Use a named, consenting external custodian only for a benchmark actually administered independently;
 - check for overlap with pretrained models or public benchmark fixtures when an
   experiment uses language models;
 - publish retired sequestered instances so results can later be audited.

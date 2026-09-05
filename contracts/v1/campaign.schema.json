@@ -88,6 +88,183 @@
       "type": "string",
       "minLength": 10,
       "maxLength": 1000
+    },
+    "search_condition": {
+      "type": "object",
+      "properties": {
+        "encoding": {
+          "type": "string",
+          "enum": [
+            "substitution",
+            "balanced-homophonic",
+            "naibbe-global-permutation"
+          ]
+        },
+        "language": {
+          "type": "string",
+          "enum": [
+            "latin",
+            "italian"
+          ]
+        },
+        "length": {
+          "anyOf": [
+            {
+              "type": "number",
+              "const": 1000
+            },
+            {
+              "type": "number",
+              "const": 5000
+            },
+            {
+              "type": "number",
+              "const": 20000
+            }
+          ]
+        },
+        "starts": {
+          "anyOf": [
+            {
+              "type": "number",
+              "const": 1
+            },
+            {
+              "type": "number",
+              "const": 8
+            },
+            {
+              "type": "number",
+              "const": 64
+            }
+          ]
+        },
+        "iterations": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100000
+        },
+        "algorithm": {
+          "type": "string",
+          "enum": [
+            "beam-v1",
+            "restart-anneal-v1"
+          ]
+        },
+        "beam_width": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 64
+        },
+        "model_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "encoding",
+        "language",
+        "length",
+        "starts",
+        "iterations",
+        "algorithm",
+        "beam_width",
+        "model_digest"
+      ],
+      "additionalProperties": false
+    },
+    "manuscript_layout": {
+      "type": "object",
+      "properties": {
+        "transcription_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "ciphertext_digest": {
+          "type": "string",
+          "pattern": "^sha256:[0-9a-f]{64}$"
+        },
+        "symbol_grouping": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 1000
+        },
+        "space_handling": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 1000
+        },
+        "lines": {
+          "minItems": 1,
+          "maxItems": 2000,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "folio": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 30
+              },
+              "paragraph": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 50
+              },
+              "line": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 50
+              },
+              "offset": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 19999
+              },
+              "length": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20000
+              },
+              "uncertain_positions": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 19999
+                }
+              }
+            },
+            "required": [
+              "folio",
+              "paragraph",
+              "line",
+              "offset",
+              "length",
+              "uncertain_positions"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "excluded_material": {
+          "maxItems": 1000,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        }
+      },
+      "required": [
+        "transcription_digest",
+        "ciphertext_digest",
+        "symbol_grouping",
+        "space_handling",
+        "lines",
+        "excluded_material"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [
