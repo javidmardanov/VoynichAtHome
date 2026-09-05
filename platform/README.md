@@ -61,6 +61,8 @@ An owner can create a backup with `{"action":"backup"}`. Restore with `{"action"
 
 ## Packaging
 
+The pinned Cloudflare adapter is wrapped by `scripts/isolated-adapter.mjs` to disable its optional response cache. Workers for Platforms [forbids the default cache](https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/reference/worker-isolation/), which otherwise fails at the first hosted request. Static assets retain provider caching. A guarded build transformation and runtime regression test require an explicit review if the upstream adapter changes.
+
 `npm run package:worker --workspace platform` uses Wrangler's dry run to bundle the SvelteKit Worker, statically imported WASM, public assets, logical Sites bindings, and migrations under root `dist/`. It performs no paid setup or deployment. The root `.openai/hosting.json` owns the existing Site identity; the ignored platform copy is generated for the Sites Vite plugin. Push the exact source commit before saving a Sites version.
 
 The two dependency overrides in the root package address GHSA-pxg6-pf52-xh8x (cookie) and GHSA-67mh-4wv8-2f99 (the development esbuild loader). Builds, migrations, cookie/session tests, and the audit must remain green when updating them.
