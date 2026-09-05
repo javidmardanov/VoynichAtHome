@@ -1,0 +1,190 @@
+{
+  "scope": "Owner-private, empty preview. No real OAuth or hosted computation tested.",
+  "source_commit": "a62fa225a0908858381254043b65b2ece5c54d1f",
+  "site_version": 4,
+  "tables": 19,
+  "browser": {
+    "scope": "Read-only owner preview; no OAuth sign-in or computing campaign tested.",
+    "origin": "https://voynich-at-home.jenobi.chatgpt.site",
+    "checked_at": "2026-09-05T15:51:07.418Z",
+    "results": [
+      {
+        "engine": "chromium",
+        "path": "/",
+        "status": 200,
+        "heading": "A mysteryworth testing."
+      },
+      {
+        "engine": "chromium",
+        "path": "/contribute",
+        "status": 200,
+        "heading": "Put your browserto work."
+      },
+      {
+        "engine": "chromium",
+        "path": "/experiments",
+        "status": 200,
+        "heading": "Follow the evidence."
+      },
+      {
+        "engine": "chromium",
+        "path": "/research/development",
+        "status": 200,
+        "heading": "Does more search help?"
+      },
+      {
+        "engine": "chromium",
+        "path": "/methods",
+        "status": 200,
+        "heading": "Test a claim.Keep the record."
+      },
+      {
+        "engine": "chromium",
+        "path": "/downloads",
+        "status": 200,
+        "heading": "Make it reproducible."
+      },
+      {
+        "engine": "chromium",
+        "path": "/account",
+        "status": 200,
+        "heading": "Your place in the project."
+      },
+      {
+        "engine": "chromium",
+        "path": "/status",
+        "status": 200,
+        "heading": "Know what is running."
+      },
+      {
+        "engine": "firefox",
+        "path": "/",
+        "status": 200,
+        "heading": "A mysteryworth testing."
+      },
+      {
+        "engine": "firefox",
+        "path": "/contribute",
+        "status": 200,
+        "heading": "Put your browserto work."
+      },
+      {
+        "engine": "firefox",
+        "path": "/experiments",
+        "status": 200,
+        "heading": "Follow the evidence."
+      },
+      {
+        "engine": "firefox",
+        "path": "/research/development",
+        "status": 200,
+        "heading": "Does more search help?"
+      },
+      {
+        "engine": "firefox",
+        "path": "/methods",
+        "status": 200,
+        "heading": "Test a claim.Keep the record."
+      },
+      {
+        "engine": "firefox",
+        "path": "/downloads",
+        "status": 200,
+        "heading": "Make it reproducible."
+      },
+      {
+        "engine": "firefox",
+        "path": "/account",
+        "status": 200,
+        "heading": "Your place in the project."
+      },
+      {
+        "engine": "firefox",
+        "path": "/status",
+        "status": 200,
+        "heading": "Know what is running."
+      },
+      {
+        "engine": "webkit",
+        "path": "/",
+        "status": 200,
+        "heading": "A mysteryworth testing."
+      },
+      {
+        "engine": "webkit",
+        "path": "/contribute",
+        "status": 200,
+        "heading": "Put your browserto work."
+      },
+      {
+        "engine": "webkit",
+        "path": "/experiments",
+        "status": 200,
+        "heading": "Follow the evidence."
+      },
+      {
+        "engine": "webkit",
+        "path": "/research/development",
+        "status": 200,
+        "heading": "Does more search help?"
+      },
+      {
+        "engine": "webkit",
+        "path": "/methods",
+        "status": 200,
+        "heading": "Test a claim.Keep the record."
+      },
+      {
+        "engine": "webkit",
+        "path": "/downloads",
+        "status": 200,
+        "heading": "Make it reproducible."
+      },
+      {
+        "engine": "webkit",
+        "path": "/account",
+        "status": 200,
+        "heading": "Your place in the project."
+      },
+      {
+        "engine": "webkit",
+        "path": "/status",
+        "status": 200,
+        "heading": "Know what is running."
+      }
+    ]
+  },
+  "rollback": {
+    "scope": "Empty owner-private preview only. No campaigns, units or user accounts existed before rollback. Not a live-campaign rollback or backup restoration test.",
+    "origin": "https://voynich-at-home.jenobi.chatgpt.site",
+    "checks": [
+      {
+        "phase": "before-rollback",
+        "checked_at": "2026-09-05T15:53:04.325Z",
+        "deployment": "appgdep_6a9c36da9af481919643c741caa85157",
+        "assignments_enabled": false,
+        "module": "search-1c99e685fabaeeb2",
+        "module_digest": "sha256:1c99e685fabaeeb2e7c97d9bac7ee78d798238ac118391623403c2c815e93b86",
+        "reports_response": []
+      },
+      {
+        "phase": "rolled-back",
+        "checked_at": "2026-09-05T15:54:51.346Z",
+        "deployment": "appgdep_6a9c3b0aa3648191a27d56bbac064ead",
+        "assignments_enabled": false,
+        "module": "search-bb97c22104f5f056",
+        "module_digest": "sha256:bb97c22104f5f056fa88da4221a5c858369ce741cfcb876e28c404c285c5c00a",
+        "reports_response": []
+      },
+      {
+        "phase": "restored-current",
+        "checked_at": "2026-09-05T15:59:13.448Z",
+        "deployment": "appgdep_6a9c3b6522388191b139738d1a878009",
+        "assignments_enabled": false,
+        "module": "search-1c99e685fabaeeb2",
+        "module_digest": "sha256:1c99e685fabaeeb2e7c97d9bac7ee78d798238ac118391623403c2c815e93b86",
+        "reports_response": []
+      }
+    ]
+  }
+}

@@ -88,8 +88,8 @@ jobs:
       - run: npm test
       - run: npm audit --audit-level=low
       - run: npm run build
-      - run: npm run package:worker --workspace platform
       - run: npm run package:cli --workspace platform
+      - run: npm run package:worker --workspace platform
       - name: Browser acceptance checks
         if: runner.os == 'Linux'
         working-directory: platform

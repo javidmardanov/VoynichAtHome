@@ -27,7 +27,7 @@ npx wrangler dev --config wrangler.deploy.jsonc --port 8787 --ip 127.0.0.1 --var
 
 This imports 16 synthetic operational work units into local D1/R2 and creates the native/WASM parity fixture. It never selects remote bindings. It is not a concealed scientific study. Pause or Stop in the browser terminates its worker; saved checkpoints and results live in IndexedDB. Reload never starts computation automatically.
 
-The automated browser suite uses its own ephemeral Worker, D1/R2, and signed fixture sessions. It does not need source downloads or OAuth applications. Build and package the Worker and CLI first, then run `npm run test:browser --workspace platform` and `npm run test:load --workspace platform`. The load test runs 25 actual computing clients and five waiting clients on one local browser host. It is not deployed-load evidence. Never publish test session-cookie files; CI retains only the explicit non-secret report files.
+The automated browser suite uses its own ephemeral Worker, D1/R2, and signed fixture sessions. It does not need source downloads or OAuth applications. After building, package the CLI and then the Worker. Run `npm run test:browser --workspace platform` and `npm run test:load --workspace platform`. The load test runs 25 actual computing clients and five waiting clients on one local browser host. It is not deployed-load evidence. Never publish test session-cookie files; CI retains only the explicit non-secret report files.
 
 ## Command-line participation and reproduction
 
@@ -71,7 +71,7 @@ For bounded application imports during maintenance, send `{"action":"import-back
 
 The pinned Cloudflare adapter is wrapped by `scripts/isolated-adapter.mjs` to disable its optional response cache. Workers for Platforms [forbids the default cache](https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/reference/worker-isolation/), which otherwise fails at the first hosted request. Static assets retain provider caching. A guarded build transformation and runtime regression test require an explicit review if the upstream adapter changes.
 
-`npm run package:worker --workspace platform` uses Wrangler's dry run to bundle the SvelteKit Worker, statically imported WASM, public assets, logical Sites bindings, and migrations under root `dist/`. It performs no paid setup or deployment. The root `.openai/hosting.json` owns the existing Site identity; the ignored platform copy is generated for the Sites Vite plugin. Push the exact source commit before saving a Sites version.
+`npm run package:cli --workspace platform` must precede `npm run package:worker --workspace platform`; the Worker package verifies that both use the same module and copies the Rust notices. The Worker command uses Wrangler's dry run to bundle the SvelteKit Worker, statically imported WASM, public assets, logical Sites bindings, and migrations under root `dist/`. It performs no paid setup or deployment. The root `.openai/hosting.json` owns the existing Site identity; the ignored platform copy is generated for the Sites Vite plugin. Push the exact source commit before saving a Sites version.
 
 The two dependency overrides in the root package address GHSA-pxg6-pf52-xh8x (cookie) and GHSA-67mh-4wv8-2f99 (the development esbuild loader). Builds, migrations, cookie/session tests, and the audit must remain green when updating them.
 

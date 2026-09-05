@@ -59,8 +59,8 @@ jobs:
         run: node scripts/run-ts.mjs scripts/export-contracts.ts
       - run: git diff --exit-code -- contracts/v1
       - run: npm run build
-      - run: npm run package:worker --workspace platform
       - run: npm run package:cli --workspace platform
+      - run: npm run package:worker --workspace platform
       - name: Install browser engines
         if: runner.os == 'Linux'
         working-directory: platform
