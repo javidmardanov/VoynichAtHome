@@ -22,6 +22,8 @@ pub struct LedgerHeader {
     pub grid_digest: String,
     pub experiment_id: String,
     pub family: String,
+    #[serde(default = "legacy_metric")]
+    pub metric: String,
     pub target_digest: String,
     pub layout_digest: String,
     pub resources_digest: Option<String>,
@@ -47,6 +49,10 @@ pub struct LedgerEntry {
     pub min: f64,
     pub max: f64,
     pub specimen_seed: u64,
+}
+
+fn legacy_metric() -> String {
+    "z".into()
 }
 
 type Res<T> = Result<T, Box<dyn std::error::Error>>;
@@ -81,7 +87,7 @@ pub fn run_grid(
                 }
                 let params = grid.point(i);
                 let run = (|| -> Result<LedgerEntry, vah_core::CoreError> {
-                    let wu = vah_core::make_work_unit(
+                    let mut wu = vah_core::make_work_unit(
                         &grid.experiment_id,
                         &grid.family,
                         params.clone(),
@@ -91,6 +97,7 @@ pub fn run_grid(
                         0,
                         grid.replicates,
                     )?;
+                    wu.metric = grid.metric.clone();
                     let r = vah_core::run_work_unit(&wu, target, &layout, resources, |_, _| {})?;
                     Ok(LedgerEntry {
                         index: i,
@@ -152,6 +159,7 @@ pub fn header(
         grid_digest: vah_core::digest_json(grid)?,
         experiment_id: grid.experiment_id.clone(),
         family: grid.family.clone(),
+        metric: grid.metric.clone(),
         target_digest: vah_core::digest_json(target)?,
         layout_digest: vah_core::digest_json(&layout)?,
         resources_digest: match resources {

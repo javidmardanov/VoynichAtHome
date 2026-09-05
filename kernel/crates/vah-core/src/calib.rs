@@ -1,10 +1,9 @@
 //! Calibration arithmetic: quantiles, binomial confidence bounds and the
 //! acceptance rule applied to the replicates of one parameter point.
 //!
-//! The rule is deliberately simple and fully registered: a point is
-//! *compatible* when the lower confidence bound of its acceptance
-//! probability `P(d <= epsilon)` exceeds a registered level. A single
-//! replicate inside epsilon never decides anything.
+//! Legacy rules A/B/C are exploratory distance screens, not calibrated tests
+//! of a generator family. Their stored field names remain for compatibility.
+//! See docs/SCIENTIFIC-CORRECTIONS.md for interpretation and fresh-target tests.
 
 use serde::{Deserialize, Serialize};
 
@@ -114,8 +113,8 @@ pub fn acceptance(distances: &[f64], rule: &Rule) -> Acceptance {
 /// of the other replicates is compared with the target's distance `r_t` to
 /// the full centroid, both as root-mean-square z-scores under the target's
 /// scales. The rank p-value is `(1 + #{i : r_i >= r_t}) / (n + 1)`. This
-/// needs no global epsilon and adapts to the spread of each point; a point
-/// whose replicates scatter widely is judged by its own scatter.
+/// is retained for historical reproduction only. The N and N-1 centroids
+/// are asymmetric, so this rank is not an exchangeable Monte Carlo p-value.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct CentroidTest {
     pub n: usize,
@@ -176,7 +175,9 @@ pub fn centroid_test(
 /// heavy tail of degenerate replicates does not inflate the threshold. A
 /// point is compatible when the median of its `n` replicate distances is at
 /// or below `epsilon_median`. Deterministic: subsets are drawn with the
-/// kernel's own random source from `seed`.
+/// kernel's own random source from `seed`. This describes one fixed finite
+/// pool and fixed target. It gives no population error-rate guarantee and
+/// must not be transferred across batch sizes or parameter settings.
 pub fn subset_median_quantile(
     self_distances: &[f64],
     n: usize,

@@ -15,6 +15,12 @@ use crate::{CoreError, MAX_SEEDS_PER_UNIT};
 pub struct Grid {
     pub experiment_id: String,
     pub family: String,
+    /// Explicit score selection. Omitted z preserves legacy grid identities.
+    #[serde(
+        default = "crate::default_metric",
+        skip_serializing_if = "crate::is_default_metric"
+    )]
+    pub metric: String,
     /// Parameters shared by every point.
     #[serde(default)]
     pub fixed: Params,
@@ -38,6 +44,12 @@ pub struct Grid {
 impl Grid {
     /// Check the grid before use.
     pub fn validate(&self) -> Result<(), CoreError> {
+        if self.metric != "z" && self.metric != "mahalanobis" {
+            return Err(CoreError::Invalid(format!(
+                "unknown metric {}",
+                self.metric
+            )));
+        }
         if !vah_generators::FAMILIES.contains(&self.family.as_str()) {
             return Err(CoreError::Invalid(format!(
                 "unknown family {}",

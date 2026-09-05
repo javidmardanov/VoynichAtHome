@@ -5,7 +5,7 @@
 //   cargo build --release --target wasm32-unknown-unknown -p vah-wasm
 //   node scripts/wasm-parity.mjs [golden-dir] [job.json ...]
 import { readFileSync, readdirSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { join, dirname, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -59,13 +59,14 @@ try { expected = JSON.parse(readFileSync(join(goldenDir, "expected.json"), "utf8
 
 let failures = 0;
 for (const file of jobs) {
-  const name = file.split("/").pop();
+  const name = basename(file);
   const t0 = performance.now();
   const r = runJob(readFileSync(file, "utf8"));
   const ms = (performance.now() - t0).toFixed(0);
   const exp = expected[name];
   if (!exp) {
-    console.log(`?     ${name} ${r.result_hash} (${ms} ms, no expectation)`);
+    failures++;
+    console.log(`FAIL  ${name} ${r.result_hash} (${ms} ms, no expectation)`);
   } else if (exp.result_hash === r.result_hash && exp.specimen_seed === r.specimen_seed
              && exp.specimen_distance === r.specimen_distance && exp.distance_median === r.replicates.distance_median) {
     console.log(`ok    ${name} ${r.result_hash} (${ms} ms)`);

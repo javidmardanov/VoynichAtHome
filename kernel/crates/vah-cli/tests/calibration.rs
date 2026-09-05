@@ -122,5 +122,61 @@ fn plant_sweep_calibrate_recovers_a_planted_point() {
         std::fs::read_to_string(&report2).unwrap(),
         "thread count must not change results"
     );
+    // A different control batch must get its own threshold, not the grid's.
+    let report12 = dir.join("report12.json");
+    let out = voynich()
+        .args([
+            "calibrate",
+            "--self-replicates",
+            "24",
+            "--control-replicates",
+            "12",
+            "--alpha",
+            "0.2",
+        ])
+        .arg("--planted")
+        .arg(&planted)
+        .arg("--grid")
+        .arg(&grid)
+        .arg("--out")
+        .arg(&report12)
+        .output()
+        .unwrap();
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let r12: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&report12).unwrap()).unwrap();
+    let self_d: Vec<f64> = serde_json::from_value(r12["self_distances_raw"].clone()).unwrap();
+    let expected12 = vah_core::calib::subset_median_quantile(&self_d, 12, 0.99, 2000, 1);
+    for fam in ["bagofwords", "charmarkov", "gibberish"] {
+        assert_eq!(r12["controls"][fam]["rule_c"]["replicates"], 12);
+        assert_eq!(
+            r12["controls"][fam]["rule_c"]["epsilon_median"]
+                .as_f64()
+                .unwrap(),
+            expected12
+        );
+    }
+    // The metric must reach actual execution. This target has no precision
+    // matrix: silently using z would incorrectly succeed.
+    let mut g: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&grid).unwrap()).unwrap();
+    g["metric"] = serde_json::json!("mahalanobis");
+    std::fs::write(&grid, serde_json::to_string(&g).unwrap()).unwrap();
+    let out = voynich()
+        .args(["calibrate", "--self-replicates", "24"])
+        .arg("--planted")
+        .arg(&planted)
+        .arg("--grid")
+        .arg(&grid)
+        .arg("--out")
+        .arg(&report12)
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    assert!(String::from_utf8_lossy(&out.stderr).contains("precision"));
     let _ = std::fs::remove_dir_all(&dir);
 }

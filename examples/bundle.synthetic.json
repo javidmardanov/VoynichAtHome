@@ -1,0 +1,57 @@
+{
+  "schema_version": "1.0.0",
+  "corpus_snapshot": "corpus-snapshot.synthetic.json",
+  "experiment": "experiment.known-cipher.json",
+  "work_units": [
+    "work-unit.known-cipher.000000.json"
+  ],
+  "result_envelopes": [
+    "result-envelope.known-cipher.000000.json",
+    "result-envelope.known-cipher.000000.replica2.json"
+  ],
+  "validation_records": [
+    "validation-record.known-cipher.000000.json"
+  ],
+  "artifacts": [
+    {
+      "path": "../benchmarks/fixtures/synthetic-plaintext.txt",
+      "digest_mode": "raw"
+    },
+    {
+      "path": "../benchmarks/fixtures/synthetic-ciphertext.txt",
+      "digest_mode": "raw"
+    },
+    {
+      "path": "../benchmarks/generators/caesar.py",
+      "digest_mode": "raw"
+    },
+    {
+      "path": "../benchmarks/workers/caesar_search.py",
+      "digest_mode": "raw"
+    },
+    {
+      "path": "../benchmarks/contracts/toy-caesar-output.schema.json",
+      "digest_mode": "raw"
+    },
+    {
+      "path": "../src/voynich_at_home/contracts.py",
+      "digest_mode": "raw"
+    },
+    {
+      "path": "../src/voynich_at_home/schemas/work-unit.schema.json",
+      "digest_mode": "raw"
+    },
+    {
+      "path": "partitions.synthetic.json",
+      "digest_mode": "canonical-json"
+    },
+    {
+      "path": "controls.synthetic.json",
+      "digest_mode": "canonical-json"
+    },
+    {
+      "path": "output.known-cipher.000000.json",
+      "digest_mode": "raw"
+    }
+  ]
+}

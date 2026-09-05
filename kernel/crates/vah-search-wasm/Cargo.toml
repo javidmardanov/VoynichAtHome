@@ -1,0 +1,14 @@
+[package]
+name = "vah-search-wasm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+vah-search = { path = "../vah-search" }
+serde.workspace = true
+serde_json.workspace = true

@@ -99,6 +99,15 @@ struct CorpusOpts {
 
 #[derive(Subcommand)]
 enum Cmd {
+    /// Fresh-target rank statistic for a fully specified reset generator.
+    TestGenerator {
+        #[arg(long)]
+        spec: PathBuf,
+        #[arg(long)]
+        observed: PathBuf,
+        #[arg(long)]
+        out: PathBuf,
+    },
     /// Print the fingerprint of a transliteration file.
     Fingerprint {
         file: PathBuf,
@@ -250,8 +259,9 @@ enum Cmd {
         ledger: Option<PathBuf>,
         #[arg(long, default_value_t = 64)]
         self_replicates: u32,
-        #[arg(long, default_value_t = 16)]
-        control_replicates: u32,
+        /// Control count (defaults to the grid count); calibrated separately if different.
+        #[arg(long)]
+        control_replicates: Option<u32>,
         /// Epsilon = this quantile of the self-distances.
         #[arg(long, default_value_t = 0.99)]
         quantile: f64,
@@ -290,7 +300,7 @@ enum Cmd {
         layout: PathBuf,
         #[arg(long)]
         resources: Option<PathBuf>,
-        #[arg(long, default_value_t = 3)]
+        #[arg(long, default_value_t = 4)]
         levels: usize,
         /// Step multiplier per level.
         #[arg(long, default_value_t = 0.5)]
@@ -422,6 +432,17 @@ struct ExpectedEntry {
 
 fn run(cli: Cli) -> Res<()> {
     match cli.cmd {
+        Cmd::TestGenerator {
+            spec,
+            observed,
+            out,
+        } => {
+            let spec: vah_core::conditional::Spec = read_json(&spec)?;
+            let observed: Corpus = read_json(&observed)?;
+            let report = vah_core::conditional::run(&spec, &observed)?;
+            write_json(&out, &report)?;
+        }
+
         Cmd::Fingerprint {
             file,
             corpus: opts,
@@ -813,6 +834,15 @@ fn run(cli: Cli) -> Res<()> {
         } => {
             let grid: Grid = read_json(&grid)?;
             grid.validate()?;
+            let control_replicates = control_replicates.unwrap_or(grid.replicates);
+            if self_replicates < grid.replicates || self_replicates < control_replicates {
+                return Err(
+                    "self replicate pool must be at least as large as every tested batch".into(),
+                );
+            }
+            if !quantile.is_finite() || !(0.0..=1.0).contains(&quantile) {
+                return Err("quantile must be in [0, 1]".into());
+            }
             let target = read_target(&planted.join("fingerprint_v1.json"))?;
             let layout: Layout = read_json(&planted.join("layout_v1.json"))?;
             let resources: Resources = read_json(&planted.join("resources_v1.json"))?;
@@ -832,7 +862,7 @@ fn run(cli: Cli) -> Res<()> {
             } else {
                 None
             };
-            let wu = vah_core::make_work_unit(
+            let mut wu = vah_core::make_work_unit(
                 "calibration-self",
                 &hidden_family,
                 hidden_params.clone(),
@@ -842,6 +872,7 @@ fn run(cli: Cli) -> Res<()> {
                 0,
                 self_replicates,
             )?;
+            wu.metric = grid.metric.clone();
             let self_run =
                 vah_core::run_work_unit(&wu, &target, &grid_layout, hidden_res, |_, _| {})?;
             let self_d = calib::sorted(
@@ -875,6 +906,14 @@ fn run(cli: Cli) -> Res<()> {
                     let (h, e) = sweep::read_ledger(&p)?;
                     if h.grid_digest != header.grid_digest
                         || h.target_digest != header.target_digest
+                        || h.metric != header.metric
+                        || h.layout_digest != header.layout_digest
+                        || h.resources_digest != header.resources_digest
+                        || h.numeric_profile != header.numeric_profile
+                        || e.len() != header.points
+                        || e.iter().enumerate().any(|(i, x)| {
+                            x.index != i || x.distances.len() != header.replicates as usize
+                        })
                     {
                         return Err("ledger was made for a different grid or target".into());
                     }
@@ -941,10 +980,11 @@ fn run(cli: Cli) -> Res<()> {
             let hidden_cloud = nearest
                 .and_then(|i| cloud.iter().find(|(j, _)| *j == i))
                 .map(|(_, t)| t.clone());
-            let recovered_b = hidden_cloud
-                .as_ref()
-                .map(|t| t.p_value > alpha)
-                .unwrap_or(false);
+            let recovered_b = on_grid == Some(true)
+                && hidden_cloud
+                    .as_ref()
+                    .map(|t| t.p_value > alpha)
+                    .unwrap_or(false);
             let self_fps: Vec<Vec<f64>> = self_run
                 .seeds
                 .iter()
@@ -963,13 +1003,14 @@ fn run(cli: Cli) -> Res<()> {
             let hidden_median = nearest
                 .and_then(|i| entries.iter().find(|e| e.index == i))
                 .map(|e| e.median);
-            let recovered_c = hidden_median.map(|m| m <= epsilon_median).unwrap_or(false);
+            let recovered_c = on_grid == Some(true)
+                && hidden_median.map(|m| m <= epsilon_median).unwrap_or(false);
 
             // 4. Controls against the planted target, under all rules.
             let mut controls = serde_json::Map::new();
             for fam in ["gibberish", "bagofwords", "charmarkov"] {
                 let r = if needs(fam) { Some(&resources) } else { None };
-                let wu = vah_core::make_work_unit(
+                let mut wu = vah_core::make_work_unit(
                     "calibration-control",
                     fam,
                     Params::new(),
@@ -979,6 +1020,7 @@ fn run(cli: Cli) -> Res<()> {
                     0,
                     control_replicates,
                 )?;
+                wu.metric = grid.metric.clone();
                 let run = vah_core::run_work_unit(&wu, &target, &grid_layout, r, |_, _| {})?;
                 let a = calib::acceptance(
                     &run.seeds.iter().map(|s| s.distance).collect::<Vec<_>>(),
@@ -986,8 +1028,15 @@ fn run(cli: Cli) -> Res<()> {
                 );
                 let fps: Vec<Vec<f64>> = run.seeds.iter().map(|s| s.fingerprint.clone()).collect();
                 let b = calib::centroid_test(&fps, &target.mean, &target.scale);
-                let c_ok = a.median <= epsilon_median;
-                controls.insert(fam.to_string(), serde_json::json!({"rule_a": a, "rule_b": b, "rule_c": {"median": a.median, "compatible": c_ok}}));
+                let control_epsilon = calib::subset_median_quantile(
+                    &self_d,
+                    control_replicates as usize,
+                    quantile,
+                    2000,
+                    1,
+                );
+                let c_ok = a.median <= control_epsilon;
+                controls.insert(fam.to_string(), serde_json::json!({"rule_a": a, "rule_b": b, "rule_c": {"replicates": control_replicates, "epsilon_median": control_epsilon, "median": a.median, "compatible": c_ok}}));
             }
 
             let compatible_points: Vec<serde_json::Value> = accepted
@@ -995,12 +1044,16 @@ fn run(cli: Cli) -> Res<()> {
                 .filter(|(_, a)| a.compatible)
                 .map(|(i, a)| serde_json::json!({"index": i, "params": grid.point(*i), "acceptance": a}))
                 .collect();
-            let recovered = hidden_acceptance
-                .as_ref()
-                .map(|a| a.compatible)
-                .unwrap_or(false);
+            let recovered = on_grid == Some(true)
+                && hidden_acceptance
+                    .as_ref()
+                    .map(|a| a.compatible)
+                    .unwrap_or(false);
             let report = serde_json::json!({
-                "schema_version": "vah-calibration-0.1",
+                "schema_version": "vah-calibration-0.2",
+                "interpretation": "exploratory distance screen, no calibrated Type I error guarantee; evaluated settings only",
+                "metric": grid.metric,
+                "control_replicates": control_replicates,
                 "planted": answer,
                 "grid": {"digest": header.grid_digest, "family": grid.family, "points": grid.len(), "replicates": grid.replicates},
                 "rule": rule,

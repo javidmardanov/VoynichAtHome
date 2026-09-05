@@ -28,7 +28,8 @@ fetch() {
   if [ "$got" = "$sha" ]; then
     echo "ok      data/$name sha256=$got"
   else
-    echo "WARNING data/$name sha256=$got, expected $sha (upstream changed? register a new snapshot)" >&2
+    echo "ERROR data/$name sha256=$got, expected $sha (upstream changed? register a new snapshot)" >&2
+    return 1
   fi
 }
 

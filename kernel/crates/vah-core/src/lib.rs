@@ -18,6 +18,7 @@
 #![forbid(unsafe_code)]
 
 pub mod calib;
+pub mod conditional;
 pub mod grid;
 mod jcs;
 pub mod partition;

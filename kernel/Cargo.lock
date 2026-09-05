@@ -391,6 +391,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "vah-search"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "libm",
+ "serde",
+ "serde_json",
+ "vah-core",
+ "vah-generators",
+]
+
+[[package]]
+name = "vah-search-wasm"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "vah-search",
+]
+
+[[package]]
 name = "vah-stats"
 version = "0.1.0"
 dependencies = [

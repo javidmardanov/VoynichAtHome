@@ -48,6 +48,9 @@ pub struct Report {
     pub schema_version: String,
     pub experiment_id: String,
     pub family: String,
+    pub metric: String,
+    pub interpretation: String,
+    pub stop_reason: String,
     pub target_digest: String,
     pub shrink: f64,
     pub epsilon_median: Option<f64>,
@@ -177,6 +180,7 @@ fn next_grid(
         // evaluated at two levels shares one random stream (re-chunking rule).
         experiment_id: prev.experiment_id.clone(),
         family: prev.family.clone(),
+        metric: prev.metric.clone(),
         fixed: prev.fixed.clone(),
         axes: new_axes,
         replicates,
@@ -207,6 +211,15 @@ pub fn refine(
     out: &Path,
 ) -> Res<Report> {
     grid0.validate()?;
+    if epsilon_median.is_some_and(|e| !e.is_finite() || e < 0.0) {
+        return Err("epsilon_median must be finite and nonnegative".into());
+    }
+    if epsilon_median.is_some() && final_replicates.is_some_and(|r| r != grid0.replicates) {
+        return Err("a median threshold cannot be reused with a different replicate count; omit the threshold or use the calibrated count".into());
+    }
+    if levels == 0 || levels > 16 {
+        return Err("levels must be in 1..=16".into());
+    }
     if !(shrink > 0.0 && shrink < 1.0) {
         return Err("shrink must be in (0, 1)".into());
     }
@@ -215,7 +228,8 @@ pub fn refine(
     let mut grid = grid0.clone();
     let mut report_levels: Vec<Level> = Vec::new();
     let mut simulations = 0u64;
-    for level in 0..levels.max(1) {
+    let mut stop_reason = "level_budget_exhausted";
+    for level in 0..levels {
         if level + 1 == levels {
             if let Some(r) = final_replicates {
                 grid.replicates = r;
@@ -270,6 +284,7 @@ pub fn refine(
         match next_grid(&grid, &mut axes, &best.params, shrink, grid.replicates) {
             Some(g) => grid = g,
             None => {
+                stop_reason = "no_axis_can_move";
                 eprintln!("  no axis can move further; stopping");
                 break;
             }
@@ -277,9 +292,12 @@ pub fn refine(
     }
     let last = report_levels.last().expect("at least one level");
     let report = Report {
-        schema_version: "vah-refine-0.1".to_string(),
+        schema_version: "vah-refine-0.2".to_string(),
         experiment_id: grid0.experiment_id.clone(),
         family: grid0.family.clone(),
+        metric: grid0.metric.clone(),
+        interpretation: "exploratory distance screen; conclusions concern evaluated settings only, not the continuous domain".into(),
+        stop_reason: stop_reason.into(),
         target_digest: vah_core::digest_json(target)?,
         shrink,
         epsilon_median,

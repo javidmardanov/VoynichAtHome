@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0.0",
+  "grouping_units": [
+    "work"
+  ],
+  "assignments": [
+    {
+      "group_id": "synthetic-latin-phrase-v1",
+      "role": "control"
+    },
+    {
+      "group_id": "reserved-toy-confirmation-v1",
+      "role": "confirmation"
+    }
+  ],
+  "note": "Illustrative only. Production known-answer partitions are held by an independent benchmark custodian."
+}
