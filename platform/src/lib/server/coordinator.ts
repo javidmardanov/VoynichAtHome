@@ -1,6 +1,7 @@
-import { identity, sha256, Submission, Work, Campaign, validateSearchWork } from '../contracts';
+import { identity, sha256, Submission, Work, Campaign, validateSearchWork, validateScientificWork } from '../contracts';
 import type { D1Database } from '@cloudflare/workers-types';
 import { requireRecoveryEvidence } from './reports';
+import {compactInput,writeShared,loadInput,writeImmutableInput} from './inputs';
 
 export class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
 export type Guest = { id: string; user_id: string | null; blocked: number };
@@ -19,9 +20,11 @@ export async function reserveWindow(db:D1Database) {
       WHERE reserved=1 AND trusted_hash IS NULL AND (reserved_window IS NULL OR reserved_window<>?)),0) WHERE window=?`).bind(window,window),
     db.prepare(`UPDATE units SET reserved_window=? WHERE reserved=1 AND trusted_hash IS NULL AND (reserved_window IS NULL OR reserved_window<>?)`).bind(window,window)
   ]);
+  return window;
 }
 export async function recordRequest(db:D1Database) {
-  await db.prepare('UPDATE limits SET requests=requests+1 WHERE window=?').bind(month()).run();
+  await db.prepare(`INSERT INTO limits (window,max_assignments,max_reserved_ms,max_inflight,requests) VALUES (?,0,0,25,1)
+    ON CONFLICT(window) DO UPDATE SET requests=requests+1`).bind(month()).run();
 }
 export async function guestFromToken(db: D1Database, token: string | undefined): Promise<Guest | null> {
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
@@ -60,10 +63,10 @@ export async function status(env: Env) {
     env.DB.prepare(`SELECT id,title,question,status,scientific_status,manifest_digest FROM campaigns WHERE status<>'draft' ORDER BY created_at DESC LIMIT 50`).all(),
     env.DB.prepare(`SELECT state,COUNT(*) AS count FROM units GROUP BY state`).all(),
     env.DB.prepare('SELECT * FROM limits WHERE window = ?').bind(month()).first(),
-    env.DB.prepare('SELECT COALESCE(SUM(input_bytes),0) AS reserved_input_bytes,COALESCE(SUM(validation_runs),0) AS replay_attempts,COALESCE(SUM(replay_wall_ms),0) AS replay_wall_ms FROM units').first()
+    env.DB.prepare('SELECT COALESCE(SUM(input_bytes),0)+COALESCE((SELECT SUM(input_bytes) FROM shared_objects),0) AS reserved_input_bytes,COALESCE(SUM(validation_runs),0) AS replay_attempts,COALESCE(SUM(replay_wall_ms),0) AS replay_wall_ms FROM units').first()
   ]);
   return { version:'vah-status-1',stage:env.DEPLOYMENT_STAGE??'development',assignments_enabled:env.ASSIGNMENTS_ENABLED==='true' && !!control && !control.stopped,
-    reason:control?.reason??'No campaign is open.',campaigns:campaigns.results,queue:queue.results,budget,resources:{...resources,max_input_bytes:MAX_INPUT_STORAGE,measurement:'Replay elapsed time is not provider-metered CPU time. Input reservation conservatively counts duplicate inputs.'},
+    reason:control?.reason??'No campaign is open.',campaigns:campaigns.results,queue:queue.results,budget,resources:{...resources,max_input_bytes:MAX_INPUT_STORAGE,measurement:'Replay elapsed time is not provider-metered CPU time. Storage counts compact inputs and shared objects; older full inputs retain their reservation.'},
     validation:'Candidate checks and trusted replay; browser identifiers do not prove independent people or machines.' };
 }
 
@@ -113,12 +116,7 @@ async function assignment(env: Env, attempt: {id:string;unit_id:string;expires_a
 export async function readInput(env: Env, attemptId: string, guest: Guest) {
   const unit=await env.DB.prepare(`SELECT u.* FROM units u JOIN attempts a ON a.unit_id=u.id JOIN releases r ON r.id=u.release_id WHERE a.id=? AND a.guest_id=? AND r.state='approved'`).bind(attemptId,guest.id).first<Unit>();
   if (!unit) throw new ApiError(404,'Work is unavailable or its release was revoked.');
-  const object=await env.RESEARCH.get(unit.input_key);
-  if (!object || object.size>8000000) throw new ApiError(503,'Work input is unavailable.');
-  const bytes=new Uint8Array(await object.arrayBuffer());
-  const value=JSON.parse(new TextDecoder().decode(bytes));
-  if (await identity(value)!==unit.input_digest) throw new ApiError(503,'Work input failed its integrity check.');
-  return value;
+  return loadInput(env,unit.input_key,unit.input_digest);
 }
 export async function submit(env: Env, guest: Guest, payload: unknown) {
   const body=Submission.parse(payload);
@@ -158,10 +156,7 @@ export async function validateUnit(env: Env, unitId: string, run: Runner) {
       return;
     }
     try {
-      const object=await env.RESEARCH.get(unit.input_key);
-      if (!object || object.size>8000000) throw new Error('Missing or oversized input');
-      const input=JSON.parse(await object.text());
-      if (await identity(input)!==unit.input_digest) throw new Error('Input digest mismatch');
+      const input=await loadInput(env,unit.input_key,unit.input_digest);
       const result=await run(input,unit.release_id); // full trusted replay, including rescoring
       const trustedHash=await identity(result);
       await env.DB.prepare(`UPDATE units SET trusted_result=?,trusted_hash=?,state='open',checking_until=NULL,validation_error=NULL,replay_wall_ms=replay_wall_ms+? WHERE id=?`).bind(JSON.stringify(result),trustedHash,Math.ceil(performance.now()-started),unitId).run();
@@ -213,33 +208,35 @@ export async function addCampaign(env: Env, manifest: unknown) {
 }
 export async function addUnit(env: Env, campaignId: string, specification: unknown, input: unknown, reserveMs: number) {
   const work=Work.parse(specification), unitId=await identity(work);
-  try { validateSearchWork(work,input); } catch { throw new ApiError(422,'Unsupported or inconsistent scientific input.'); }
+  try { validateScientificWork(work,input); } catch { throw new ApiError(422,'Unsupported or inconsistent scientific input.'); }
   if (!Number.isSafeInteger(reserveMs) || reserveMs<1 || reserveMs>30000) throw new ApiError(422,'Invalid trusted computation reserve.');
   const campaign=await env.DB.prepare('SELECT manifest_digest,status,manifest FROM campaigns WHERE id=?').bind(campaignId).first<{manifest_digest:string;status:string;manifest:string}>();
   if (!campaign || campaign.status!=='draft' || work.experiment_digest!==campaign.manifest_digest) throw new ApiError(409,'Units can only be imported into their draft campaign.');
   const declared=Campaign.parse(JSON.parse(campaign.manifest));
   if(declared.kind==='manuscript'){
+    if(work.type!=='search')throw new ApiError(422,'Manuscript campaigns require bounded decoder searches.');
     await requireRecoveryEvidence(env,declared.recovery_evidence,declared.methods,declared.search_condition);
     const condition=declared.search_condition!,job=validateSearchWork(work,input);
-    if(job.encoding!==(condition.encoding==='naibbe-global-permutation'?'substitution':condition.encoding)||job.algorithm!==condition.algorithm||job.ciphertext.length!==condition.length
+    if(job.encoding!==(condition.encoding==='naibbe-global-permutation'?'substitution':condition.encoding)||job.symbol_count!==condition.symbol_count||job.algorithm!==condition.algorithm||job.ciphertext.length!==condition.length
       ||job.iterations!==condition.iterations||job.beam_width!==condition.beam_width||job.start>=condition.starts||await identity(job.model)!==condition.model_digest
       ||await identity(job.ciphertext)!==declared.manuscript_layout?.ciphertext_digest)throw new ApiError(422,'Manuscript work lies outside the reviewed recovery condition or passage.');
   }
-  const bytes=new TextEncoder().encode(JSON.stringify(input));
-  if (bytes.length>work.budget.max_input_bytes || await identity(input)!==work.input_digest) throw new ApiError(422,'Input does not match its specification.');
+  if (new TextEncoder().encode(JSON.stringify(input)).length>work.budget.max_input_bytes || await identity(input)!==work.input_digest) throw new ApiError(422,'Input does not match its specification.');
+  const {bytes,shared}=await compactInput(input);
   const inputKey='inputs/'+work.input_digest.slice(7)+'.json';
   // Reserve storage before writing to R2. Interrupted imports stay unassignable
   // and can be retried with the identical scientific identity.
   await env.DB.prepare(`INSERT OR IGNORE INTO units (id,campaign_id,release_id,specification,input_digest,input_key,state,credit,reserve_ms,created_at,input_bytes)
     SELECT ?,?,?,?,?,?,'importing',?,?,?,? WHERE (SELECT COUNT(*) FROM units WHERE campaign_id=?)<?
-    AND COALESCE((SELECT SUM(input_bytes) FROM units),0)+?<=?
+    AND COALESCE((SELECT SUM(input_bytes) FROM units),0)+COALESCE((SELECT SUM(input_bytes) FROM shared_objects),0)+?<=?
     AND EXISTS (SELECT 1 FROM campaigns WHERE id=? AND status='draft')
     AND EXISTS (SELECT 1 FROM releases WHERE id=? AND state='approved')`)
     .bind(unitId,campaignId,work.release_id,JSON.stringify(work),work.input_digest,inputKey,work.work_estimate,reserveMs,now(),bytes.length,campaignId,JSON.parse(campaign.manifest).max_units,bytes.length,MAX_INPUT_STORAGE,campaignId,work.release_id).run();
   const imported=await env.DB.prepare('SELECT id,state FROM units WHERE id=?').bind(unitId).first<{id:string;state:string}>();
   if (!imported) throw new ApiError(409,'Storage reserve, campaign work limit, state, or release prevents import.');
   if(imported.state==='importing'){
-    await env.RESEARCH.put(inputKey,bytes,{httpMetadata:{contentType:'application/json'}});
+    for(const resource of shared)await writeShared(env,resource);
+    await writeImmutableInput(env,unitId,inputKey,work.input_digest,bytes);
     await env.DB.prepare("UPDATE units SET state='open' WHERE id=? AND state='importing'").bind(unitId).run();
   }
   return {id:unitId};

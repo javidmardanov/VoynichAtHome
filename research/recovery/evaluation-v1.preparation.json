@@ -1,0 +1,35 @@
+{
+  "version": "vah-recovery-preparation-1",
+  "freeze_commit": "5c1ec449f218f876d6160f99e0e9d62737d6e121",
+  "spec_digest": "sha256:659d296fe4f4c577262cf7d8a5ec2231a2607a13c09b730551adecaac30f458e",
+  "worker_manifest_sha256": "076ee277f51e0a18335aeeeabe6638600b442cfc46c74568e1478df4a69a941a",
+  "answers_commitment": "sha256:a730595ba56cf07ed1f89cd4729bcbe20cca592e7c1c7b72f7286d745330f2c1",
+  "message_key_cases": 1800,
+  "comparison_inputs": 5400,
+  "preparation_failures": 0,
+  "planned_search_runs": 351000,
+  "prepared_at": "2026-09-05T14:50:12.554358+00:00",
+  "evaluation_sources": [
+    {
+      "id": "pg-227",
+      "title": "Virgil, Aeneid",
+      "url": "https://www.gutenberg.org/cache/epub/227/pg227.txt",
+      "rights": "Public domain in the USA; retain Project Gutenberg license from original download. Check local rights before redistribution elsewhere.",
+      "rights_url": "https://www.gutenberg.org/ebooks/227",
+      "sha256": "2620ba82c00964d1a1f0458c8cf171946f158a06de0d0e764594170602c4c7b8",
+      "normalized_sha256": "716bba19e09096c865340701aece5b0d00c801f7e688adad78d8461bf17e2aaf",
+      "characters": 367549
+    },
+    {
+      "id": "pg-45334",
+      "title": "Manzoni, I promessi sposi",
+      "url": "https://www.gutenberg.org/cache/epub/45334/pg45334.txt",
+      "rights": "Public domain in the USA; retain Project Gutenberg license from original download. Check local rights before redistribution elsewhere.",
+      "rights_url": "https://www.gutenberg.org/ebooks/45334",
+      "sha256": "4cdd962f1910a49091b945eff4233798b8c13f74b011cee75a8cccc7467d3612",
+      "normalized_sha256": "19e814ff8f0fa8d66c9446a78bd54e322e8a2f46cdb8cc353be88d78a97a1a9f",
+      "characters": 1022712
+    }
+  ],
+  "state": "Prepared, not a completed evaluation. Answers remain outside worker inputs."
+}

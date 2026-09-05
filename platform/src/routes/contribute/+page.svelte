@@ -44,7 +44,7 @@
       const response=await fetch(current.lease.input_url,{signal:requests?.signal});if(!response.ok)throw Error('Saved work is unavailable or its release has been revoked.');
     }
     if(turn!==epoch)return;
-    worker=new ComputeWorker();message='Computing one bounded search.';
+    worker=new ComputeWorker();message='Computing one bounded work unit.';
     worker.onmessage=async({data})=>{
       if(turn!==epoch||!current)return;
       try{
@@ -76,7 +76,7 @@
 <div class="two-column"><section class="panel" aria-labelledby="compute-title"><div class="section-heading"><h2 id="compute-title">Your contribution</h2><span class="badge">{running?'Active':'Not computing'}</span></div>
 {#if !supported}<p class="error">This browser needs WebAssembly, web workers, local storage, and a secure connection. Try a current desktop browser, or use the <a href="/downloads">command-line worker</a>.</p>{/if}
 <p role="status" aria-live="polite">{message}</p>{#if error}<p class="error" role="alert">{error}</p>{/if}
-{#if running}<label class="small" for="search-progress">Current work unit · {Math.round(progress*100)}% of its search budget</label><progress id="search-progress" value={progress} max="1"></progress>{/if}
+{#if running}<label class="small" for="search-progress">Current work unit · {Math.round(progress*100)}% of its computation budget</label><progress id="search-progress" value={progress} max="1"></progress>{/if}
 <div class="actions"><button onclick={start} disabled={!ready||!supported||running}>{progress>0?'Resume':'Start contributing'} <span aria-hidden="true">→</span></button><button class="secondary" onclick={pause} disabled={!running}>Pause</button><button class="secondary" onclick={stop} disabled={!running}>Stop</button></div>
 <fieldset disabled={!ready||running}><legend>Resource use</legend><label for="intensity">Intensity · {intensity}%<input id="intensity" type="range" min="10" max="75" step="5" bind:value={intensity}/></label><p class="small muted">One worker, with rest between search steps. This is a duty-cycle target, not an exact percentage of your device’s CPU. Pause to change it.</p><label class="check"><input type="checkbox" bind:checked={pauseHidden}/>Pause when this tab is hidden</label></fieldset>
 <div class="stat-grid"><div><div class="stat-value">{checked}</div><div class="stat-label">Checked contributions</div></div><div><div class="stat-value">{credit.toLocaleString()}</div><div class="stat-label">Contribution credit</div></div><div><div class="stat-value">{pending}</div><div class="stat-label">Awaiting work or checks</div></div></div>

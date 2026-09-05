@@ -43,12 +43,12 @@ jobs:
           cargo fmt --all --check
           cargo clippy --locked --workspace --all-targets -- -D warnings
           cargo test --locked --workspace
-          cargo build --locked --release -p vah-search
+          cargo build --locked --release -p vah-search -p vah-search-wasm --bins
       - name: Build bounded WebAssembly
         working-directory: kernel
         env:
           RUSTFLAGS: '-C link-arg=--max-memory=100663296'
-        run: cargo build --locked --release --target wasm32-unknown-unknown -p vah-search-wasm
+        run: cargo build --locked --release --target wasm32-unknown-unknown -p vah-search-wasm --lib
       - run: npm run kernel:package --workspace platform
       - run: npm run check
       - run: npm test

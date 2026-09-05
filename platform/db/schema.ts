@@ -62,6 +62,9 @@ export const units = sqliteTable('units', {
   attemptLimit: integer('attempt_limit').notNull().default(6), validationRuns: integer('validation_runs').notNull().default(0), replayWallMs: integer('replay_wall_ms').notNull().default(0),
   trustedResult: text('trusted_result'), trustedHash: text('trusted_hash'), checkingUntil: integer('checking_until'), validationError: text('validation_error'), createdAt: integer('created_at').notNull()
 }, t => [index('units_campaign_state_idx').on(t.campaignId, t.state)]);
+export const sharedObjects = sqliteTable('shared_objects', {
+  digest:text('digest').primaryKey(),inputBytes:integer('input_bytes').notNull(),state:text('state').notNull().default('importing')
+});
 export const attempts = sqliteTable('attempts', {
   id: text('id').primaryKey(), unitId: text('unit_id').notNull().references(() => units.id), guestId: text('guest_id').notNull().references(() => guests.id),
   expiresAt: integer('expires_at').notNull(), createdAt: integer('created_at').notNull(), submittedAt: integer('submitted_at'),

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "vah-stored-input-1"
+    },
+    "input_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "body": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {}
+    },
+    "references": {
+      "minItems": 2,
+      "maxItems": 2,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "enum": [
+              "model",
+              "ciphertext",
+              "job.model",
+              "job.ciphertext"
+            ]
+          },
+          "digest": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          }
+        },
+        "required": [
+          "path",
+          "digest"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "version",
+    "input_digest",
+    "body",
+    "references"
+  ],
+  "additionalProperties": false,
+  "$id": "urn:voynich:contracts:v1:stored-input",
+  "x-semantic-validation": "See platform/src/lib/contracts.ts and the Rust kernel; schema alone does not establish valid identities, scores, or execution."
+}

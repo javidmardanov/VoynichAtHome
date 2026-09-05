@@ -6,7 +6,7 @@ const output=resolve('dist/cli');
 if(relative(resolve(),output).replaceAll('\\','/')!=='dist/cli')throw Error('Unexpected CLI output path');
 await build({configFile:false,publicDir:false,ssr:{noExternal:['zod']},build:{ssr:true,outDir:output,emptyOutDir:true,
   rollupOptions:{input:{volunteer:resolve('scripts/volunteer.ts'),reproduce:resolve('scripts/reproduce.ts')},output:{entryFileNames:'[name].mjs',chunkFileNames:'[name]-[hash].mjs'}}}});
-const native='vah-search'+(process.platform==='win32'?'.exe':'');await copyFile('../kernel/target/release/'+native,resolve(output,native));
+for(const name of ['vah-search','vah-worker']){const native=name+(process.platform==='win32'?'.exe':'');await copyFile('../kernel/target/release/'+native,resolve(output,native));}
 await copyFile('../LICENSE',resolve(output,'LICENSE'));
 await copyFile('src/lib/generated/search.wasm',resolve(output,'search.wasm'));
 await copyFile('src/lib/generated/kernel.json',resolve(output,'kernel.json'));
@@ -17,7 +17,7 @@ await copyFile('../third_party/naibbe/SOURCE.json',resolve(output,'licenses/Naib
 const metadata=spawnSync('cargo',['metadata','--format-version','1','--locked'],{cwd:resolve('../kernel'),encoding:'utf8',maxBuffer:16000000,windowsHide:true});
 if(metadata.status!==0)throw Error('Cargo metadata is required to package dependency licenses: '+(metadata.error?.message??metadata.stderr));
 const graph=JSON.parse(metadata.stdout),start=graph.packages.find(p=>p.name==='vah-search'),included=new Set();
-function visit(id){if(included.has(id))return;included.add(id);for(const next of graph.resolve.nodes.find(n=>n.id===id).dependencies)visit(next);}visit(start.id);
+function visit(id){if(included.has(id))return;included.add(id);for(const next of graph.resolve.nodes.find(n=>n.id===id).dependencies)visit(next);}visit(start.id);visit(graph.packages.find(p=>p.name==='vah-search-wasm').id);
 const notices=[];
 for(const pkg of graph.packages.filter(p=>included.has(p.id))){
   const folder=dirname(pkg.manifest_path),files=(await readdir(folder)).filter(name=>/^(license|copying|notice)/i.test(name));

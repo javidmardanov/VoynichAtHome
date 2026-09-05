@@ -1,0 +1,12 @@
+{
+  "version": "vah-development-replay-summary-1",
+  "complete": true,
+  "exact_replays": 3510,
+  "original_kernel_digest": "sha256:6760f19bb9a4760a817c62fb012023771e9c4e1b5b5e6797f99248d2d454645b",
+  "replay_kernel_digest": "sha256:6760f19bb9a4760a817c62fb012023771e9c4e1b5b5e6797f99248d2d454645b",
+  "retained_operational_failures": 1,
+  "retry_records": 1,
+  "archive": "replay-audit.tar.gz",
+  "archive_sha256": "71c92d751948e11fdd53082affae6adcef562699cb55d1aec1428633c8e011b0",
+  "administration": "Reproduced by this project on the same host, not independent review."
+}

@@ -31,7 +31,7 @@ The automated browser suite uses its own ephemeral Worker, D1/R2, and signed fix
 
 ## Command-line participation and reproduction
 
-From platform/, run `npm run volunteer -- --server https://PROJECT --max-units 1`. The transport uses the same versioned work contract, checks approved release and input digests, and executes the local Rust search. Default intensity is 25%, one native process. Ctrl+C stops it. The private .voynich-worker directory retains the last checkpoint or unsent result; restart with the same server and directory to retry. A worker exits when no campaign is available. Do not share its guest proof.
+From platform/, run `npm run volunteer -- --server https://PROJECT --max-units 1`. The transport uses the same versioned work contract, checks approved release and input digests, and executes the local Rust worker. Default intensity is 25%, one native process. Ctrl+C stops it. The private .voynich-worker directory retains the last checkpoint or unsent result; restart with the same server and directory to retry. A worker exits when no campaign is available. Do not share its guest proof.
 
 Run `npm run reproduce -- --server https://PROJECT --campaign ID --out ./campaign` to download a campaign, exact work inputs, checked outputs, and the module. Then `npm run reproduce -- --offline --out ./campaign` replays from that manifest without the coordinator. It checks every file and scientific identity and compares complete native output, including traces. Pending results remain labeled pending. Exact replay is evidence about execution, not a decipherment.
 
@@ -74,3 +74,13 @@ The pinned Cloudflare adapter is wrapped by `scripts/isolated-adapter.mjs` to di
 `npm run package:worker --workspace platform` uses Wrangler's dry run to bundle the SvelteKit Worker, statically imported WASM, public assets, logical Sites bindings, and migrations under root `dist/`. It performs no paid setup or deployment. The root `.openai/hosting.json` owns the existing Site identity; the ignored platform copy is generated for the Sites Vite plugin. Push the exact source commit before saving a Sites version.
 
 The two dependency overrides in the root package address GHSA-pxg6-pf52-xh8x (cookie) and GHSA-67mh-4wv8-2f99 (the development esbuild loader). Builds, migrations, cookie/session tests, and the audit must remain green when updating them.
+
+## Generation, verification and compatible search work
+
+`vah-worker --input REQUEST.json --out RESULT.json` exposes the same operations as the approved WASM module. Version 1 generation wraps the original `vah-work-unit-0.2` job without changing its identities; limits are eight replicates and 50,000 layout words. It checkpoints after each replicate and recalculates distances at completion. Verification wraps a search job and expected result, checks the candidate, and replays the declared budget. Search and verification annealing checkpoint every 256 proposals in volunteer clients. Beam operations are bounded synchronous calls; Stop terminates their worker or native process.
+
+Published credit estimates: search/verification use `ceil(iterations * normalized_symbols / 1000)`; generation uses `ceil(replicates * layout_words * 30 / 1000)` for the 30-statistic fingerprint. Runtime and candidate attractiveness never increase credit. Full trusted replay is still required. Generation and verification certificates alone cannot be promoted as decipherment candidates.
+
+The current module reproduces the prior `search-bb97c22104f5f056` search release exactly in all six tested modes. The explicit compatibility metadata permits that release only for search work. New work must use the module built into the deployment. `--kernel` in the native volunteer/reproducer names a `vah-worker` executable; the legacy `vah-search` CLI remains bundled for historical and scientific harness use. Version 1 language models accept their original bare SHA-256 training-source identifiers as well as prefixed digests without rewriting historical job identities.
+
+Search model/ciphertext storage is deduplicated through `vah-stored-input-1`, an internal, versioned storage contract. Volunteers and reproduction packages still receive the original full scientific input. Shared objects are immutable and their bytes count toward the 128 MB launch reserve. Portable backup includes them. Restore rejects missing/corrupt dependencies before any database deletion; interrupted imports remain stopped until the owner retries.

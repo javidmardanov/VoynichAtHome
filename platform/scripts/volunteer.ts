@@ -4,8 +4,9 @@ import { mkdir, open, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { identity, sha256, Work, validateSearchWork } from '../src/lib/contracts';
-import approved from '../src/lib/generated/kernel.json';
+import { identity, sha256, Work, validateScientificWork } from '../src/lib/contracts';
+import { approvedRelease } from '../src/lib/releases';
+import { progress, resumable, stepRequest, finishRequest } from '../src/lib/execution';
 
 const sourceMode=fileURLToPath(import.meta.url).endsWith('.ts');
 const {values}=parseArgs({args:process.argv.slice(sourceMode?3:2),options:{server:{type:'string'},state:{type:'string'},kernel:{type:'string'},'max-units':{type:'string',default:'1'},intensity:{type:'string',default:'25'}}});
@@ -16,7 +17,7 @@ if(origin.username||origin.password||origin.search||origin.hash||origin.pathname
 const count=Number(values['max-units']),intensity=Number(values.intensity)/100;
 if(!Number.isSafeInteger(count)||count<1||count>1000||!Number.isFinite(intensity)||intensity<0.1||intensity>0.75)throw Error('Use 1–1000 work units and 10–75% intensity.');
 const folder=resolve(values.state??'.voynich-worker'),root=resolve(dirname(fileURLToPath(import.meta.url)),'../..');
-const native=resolve(values.kernel??resolve(sourceMode?resolve(root,'kernel/target/release'):dirname(fileURLToPath(import.meta.url)),'vah-search'+(process.platform==='win32'?'.exe':'')));
+const native=resolve(values.kernel??resolve(sourceMode?resolve(root,'kernel/target/release'):dirname(fileURLToPath(import.meta.url)),'vah-worker'+(process.platform==='win32'?'.exe':'')));
 type Saved={version:'vah-cli-state-1';origin:string;token:string|null;current:{lease:any;job:unknown;checkpoint:Record<string,unknown>|null;result:Record<string,unknown>|null}|null};
 let saved:Saved={version:'vah-cli-state-1',origin:origin.origin,token:null,current:null},stopped=false,child:ChildProcess|null=null;
 const signal=new AbortController();
@@ -66,26 +67,22 @@ try{
       const lease=(await request('/api/v1/work',{})).json();if(lease.state!=='work'){console.log(lease.message);break;}
       const job=(await request(lease.input_url)).json();saved.current={lease,job,checkpoint:null,result:null};await save();
     }else await request(saved.current.lease.input_url); // Fail closed on revocation before resuming.
-    const current=saved.current,work=Work.parse(current.lease.work),job=validateSearchWork(work,current.job),release=current.lease.release;
+    const current=saved.current,work=Work.parse(current.lease.work),job=validateScientificWork(work,current.job),release=current.lease.release,approved=approvedRelease(work.release_id,job);
     if(await identity(work)!==current.lease.unit_id||await identity(job)!==work.input_digest||work.release_id!==approved.id||release.id!==approved.id||release.digest!==approved.digest||release.url!==approved.url)throw Error('Work identity or approved release differs.');
     // The downloaded module is checked, never executed. Computation uses the local Rust executable.
     if(await sha256((await request(approved.url)).bytes)!==approved.digest)throw Error('Published module digest differs.');
-    const input=resolve(folder,'job.json'),checkpoint=resolve(folder,'checkpoint.json'),output=resolve(folder,'output.json');
-    await writeFile(input,JSON.stringify(job),{mode:0o600});
-    console.log('Computing '+current.lease.unit_id+' with a fixed budget of '+job.iterations+'.');
+    const input=resolve(folder,'request.json'),output=resolve(folder,'output.json');
+    async function execute(request:unknown){await writeFile(input,JSON.stringify(request),{mode:0o600});await command(['--input',input,'--out',output]);return JSON.parse(await readFile(output,'utf8'));}
+    console.log('Computing '+current.lease.unit_id+' with a fixed budget of '+work.budget.evaluations+'.');
     let checkedAt=Date.now();
-    if(job.algorithm==='beam-v1')await command(['run','--job',input,'--out',output]);
-    else{
-      while(!stopped&&Number(current.checkpoint?.iteration??0)<job.iterations){
+    if(resumable(job)){
+      while(!stopped&&progress(job,current.checkpoint)<1){
         if(Date.now()-checkedAt>30000){const status=(await request('/api/v1/status')).json();checkedAt=Date.now();if(!status.assignments_enabled){console.log('Operator paused assignments. Checkpoint retained.');stop();break;}}
-        const began=performance.now(),args=['step','--job',input,'--proposals','256','--out',output];
-        if(current.checkpoint){await writeFile(checkpoint,JSON.stringify(current.checkpoint),{mode:0o600});args.push('--checkpoint',checkpoint);}
-        await command(args);current.checkpoint=JSON.parse(await readFile(output,'utf8'));await save();
+        const began=performance.now();current.checkpoint=await execute(stepRequest(job,current.checkpoint));await save();
         await rest(Math.min(30000,Math.max(25,(performance.now()-began)*(1/intensity-1))));
       }
-      if(stopped)break;await writeFile(checkpoint,JSON.stringify(current.checkpoint),{mode:0o600});await command(['finish','--job',input,'--checkpoint',checkpoint,'--out',output]);
     }
-    current.result=JSON.parse(await readFile(output,'utf8'));await save();
+    if(stopped)break;current.result=await execute(finishRequest(job,current.checkpoint));await save();
   }
 }catch(error){if(!stopped){console.error(error instanceof Error?error.message:'Worker failed.');process.exitCode=1;}}
 finally{await lock.close();await rm(resolve(folder,'worker.lock'));process.removeListener('SIGINT',stop);process.removeListener('SIGTERM',stop);}

@@ -15,7 +15,7 @@ Three cases improved from a wrong reading at one start to exact recovery at eigh
 
 There is only one message/key case per language/length/encoding cell. Passages come from development works already used during method development and can overlap. The observations justify a frozen evaluation; they do not establish a useful operating range for manuscript admission.
 
-The Naibbe extension is a **global plaintext permutation over the published restricted construction**. Known, unambiguous parsing reduces this extension to substitution. These results do not establish recovery of unrestricted verbose encodings or unknown Naibbe tables. Published fixed-construction roundtrips and private encoding details are retained in the now-retired development answers.
+The Naibbe extension is a **global plaintext permutation over a strict Rust implementation using the published tables**. Known, unambiguous parsing reduces this extension to substitution. The implementation uses ChaCha8 randomness, preserves token spaces, and rejects exhausted collision retries. It does not test the upstream optional output that removes 3% of spaces or claim byte-identical output to Python's random stream. These results do not establish recovery of unrestricted verbose encodings or unknown Naibbe tables. The identity-key roundtrips and private encoding details are retained in the now-retired development answers; their historical `published_naibbe_identity_check` field names this published-table check.
 
 ## Records and reproduction
 
@@ -23,6 +23,7 @@ The Naibbe extension is a **global plaintext permutation over the published rest
 - `summary.json`: compact positive-case data for the site.
 - `records.tar.gz`: all 3,510 complete run records, exact worker inputs/models, the retired development answers, source texts with original Project Gutenberg license material, and a per-file SHA-256 inventory.
 - `archive.json`: archive size and digest. The archive has no account credentials or production data.
+- `replay-audit.tar.gz` and `replay-summary.json`: complete project-run native reproduction of all 3,510 searches, including full trace identity comparisons. One audit attempt timed out without producing output; its failure record is retained alongside the successful retry. This is not independent review.
 
 Extract the archive into a new local directory. From the repository root, with the Python research dependencies installed:
 

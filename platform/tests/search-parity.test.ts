@@ -4,10 +4,12 @@ import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { instantiateKernel } from '../src/lib/wasm';
 import release from '../src/lib/generated/kernel.json';
+import compatibility from '../src/lib/generated/search-compatibility.json';
 import { sha256 } from '../src/lib/contracts';
 test('native and WebAssembly agree across all search modes and resume boundaries',async()=>{
   const bytes=await readFile('src/lib/generated/search.wasm');expect(await sha256(bytes)).toBe(release.digest);
   const module=await WebAssembly.compile(bytes);expect(WebAssembly.Module.imports(module)).toEqual([]);
+  const old=instantiateKernel(await WebAssembly.compile(await readFile('static'+compatibility.url)));
   const base=JSON.parse(await readFile('tests/fixtures/search-job.json','utf8'));
   await mkdir('test-results/parity',{recursive:true});
   const native=resolve('../kernel/target/release/vah-search'+(process.platform==='win32'?'.exe':''));
@@ -17,6 +19,7 @@ test('native and WebAssembly agree across all search modes and resume boundaries
     const command=spawnSync(native,['run','--job',input,'--out',output],{encoding:'utf8'});if(command.status!==0)throw Error(command.stderr);
     const expected=JSON.parse(await readFile(output,'utf8')),execute=instantiateKernel(module),actual=execute({op:'run',job});
     expect(actual,encoding+' '+algorithm).toEqual(expected);
+    expect(old({op:'run',job}),'explicit previous-release compatibility').toEqual(expected);
     if(algorithm==='restart-anneal-v1'){
       let checkpoint=execute({op:'step',job,checkpoint:null,proposals:63});
       checkpoint=execute({op:'step',job,checkpoint,proposals:450});

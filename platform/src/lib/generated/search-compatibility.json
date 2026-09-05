@@ -1,7 +1,7 @@
 {
-  "id": "search-1c99e685fabaeeb2",
-  "digest": "sha256:1c99e685fabaeeb2e7c97d9bac7ee78d798238ac118391623403c2c815e93b86",
-  "url": "/kernels/1c99e685fabaeeb2e7c97d9bac7ee78d798238ac118391623403c2c815e93b86.wasm",
+  "id": "search-bb97c22104f5f056",
+  "digest": "sha256:bb97c22104f5f056fa88da4221a5c858369ce741cfcb876e28c404c285c5c00a",
+  "url": "/kernels/bb97c22104f5f056fa88da4221a5c858369ce741cfcb876e28c404c285c5c00a.wasm",
   "abi": "vah-search-cabi-1",
   "max_memory_bytes": 100663296,
   "imports": [],
@@ -10,11 +10,11 @@
     "toolchain": "1.94.1",
     "flags": "-C link-arg=--max-memory=100663296",
     "source_normalization": "UTF-8 with LF for project source; exact bytes for third_party",
-    "source_tree_digest": "sha256:f4a6217d47483c835a8190a93b0e2bd27c021c14407a628197157cd2f73381ec",
+    "source_tree_digest": "sha256:a1b9ec9d1a881ed54f91b211d25e1674db014d2c07da909553a9d59f87957f18",
     "source_files": [
       {
         "path": "kernel/Cargo.lock",
-        "sha256": "1f34584ca69aa668f36853d9eb014c1bfd6da08190321e44cea44b05e16d7f94"
+        "sha256": "ddc54b97a6b0f362ea3899fa5b2baf944de1f8fff09d16f8c9199aad9a3dccdc"
       },
       {
         "path": "kernel/Cargo.toml",
@@ -114,19 +114,11 @@
       },
       {
         "path": "kernel/crates/vah-search-wasm/Cargo.toml",
-        "sha256": "83105e6261fda2449ceb954e14db244d9b627cb7e11490339bab3721c88cee56"
-      },
-      {
-        "path": "kernel/crates/vah-search-wasm/src/bin/vah-worker.rs",
-        "sha256": "57eb43880756d75c70d4ed4536781447d878e346a67eff760f9aacf57b4505c9"
-      },
-      {
-        "path": "kernel/crates/vah-search-wasm/src/generation.rs",
-        "sha256": "f46e29f6a32771d73900f37ef6de557ba65dfe5102b783d4f3136771ce27aff8"
+        "sha256": "6366dd3b9fb9400035af9810beee48d4b714fca35ad71286136d03e30cc541d2"
       },
       {
         "path": "kernel/crates/vah-search-wasm/src/lib.rs",
-        "sha256": "4e0daa5a16f4184e13c91fb741b470c2a5d5fe543c0b319e7d7888ece9abfcb5"
+        "sha256": "5c24b55d865bfedb1f414e4041c3e653ac96cf79343e4c30487227b0068f2c34"
       },
       {
         "path": "kernel/crates/vah-search/Cargo.toml",

@@ -1,10 +1,11 @@
 import { ApiError, now } from './coordinator';
-import { identity, sha256, Digest } from '../contracts';
+import { identity, sha256, Digest, StoredInput } from '../contracts';
 import { z } from 'zod';
+import {loadInput,sharedKey} from './inputs';
 // Foreign-key order. A backup never accepts table or column names from a caller.
-const tables=['user','account','session','verification','rate_limit','guests','profiles','teams','membership','campaigns','releases','reports','units','attempts','credit','limits','controls','audit'] as const;
+const tables=['user','account','session','verification','rate_limit','guests','profiles','teams','membership','campaigns','releases','reports','shared_objects','units','attempts','credit','limits','controls','audit'] as const;
 const Snapshot=z.object({version:z.literal('vah-backup-1'),created_at:z.number().int(),schema:z.record(z.string(),z.array(z.string())),tables:z.record(z.string(),z.array(z.record(z.string(),z.union([z.string(),z.number(),z.null()]))))}).strict();
-const PortableKey=z.string().regex(/^(inputs\/[0-9a-f]{64}\.json|deletions\/[a-zA-Z0-9_-]+\.json|backups\/\d{4}-\d{2}-\d{2}-[0-9a-f]{64}\.json)$/);
+const PortableKey=z.string().regex(/^(inputs\/[0-9a-f]{64}\.json|shared\/[0-9a-f]{64}\.json|deletions\/[a-zA-Z0-9_-]+\.json|backups\/\d{4}-\d{2}-\d{2}-[0-9a-f]{64}\.json)$/);
 export const PortableBackup=z.object({version:z.literal('vah-portable-backup-1'),created_at:z.number().int(),database_key:PortableKey,
   objects:z.array(z.object({key:PortableKey,digest:Digest,size:z.number().int().min(1).max(16000000)}).strict()).min(1).max(10000)}).strict();
 async function columns(env:Env){const result:Record<string,string[]>={};for(const table of tables){const info=await env.DB.prepare(`PRAGMA table_info("${table}")`).all<{name:string}>();result[table]=info.results.map(c=>c.name);}return result;}
@@ -33,9 +34,13 @@ export async function restore(env:Env,key:string){
   // A database snapshot is unusable without every immutable scientific input.
   // Check them before the first destructive statement is issued.
   for(const row of snapshot.tables.units){
-    const input=await env.RESEARCH.get(String(row.input_key));
-    if(!input||input.size>8000000||await identity(JSON.parse(await input.text()))!==row.input_digest)
-      throw new ApiError(409,'Restore the verified research objects before the database snapshot.');
+    if(row.state==='importing')continue; // Unissued interrupted imports remain unassignable and need an owner retry.
+    try{await loadInput(env,String(row.input_key),String(row.input_digest));}catch{throw new ApiError(409,'Restore the verified research objects before the database snapshot.');}
+  }
+  for(const row of snapshot.tables.shared_objects){
+    if(row.state!=='ready')continue;
+    const object=await env.RESEARCH.get(sharedKey(String(row.digest)));
+    if(!object||object.size!==row.input_bytes||await identity(JSON.parse(await object.text()))!==row.digest)throw new ApiError(409,'Restore the verified shared research objects before the database snapshot.');
   }
   const statements=[...tables].reverse().map(t=>env.DB.prepare(`DELETE FROM "${t}"`));
   for(const table of tables){
@@ -67,7 +72,7 @@ export async function portableBackup(env:Env){
   const saved=await backup(env),object=await env.RESEARCH.get(saved.key);
   if(!object)throw new ApiError(503,'Backup object unavailable.');
   const snapshot=Snapshot.parse(JSON.parse(await object.text()));
-  const keys=new Set<string>([saved.key,...snapshot.tables.units.map(row=>String(row.input_key))]);
+  const keys=new Set<string>([saved.key,...snapshot.tables.units.filter(row=>row.state!=='importing').map(row=>String(row.input_key)),...snapshot.tables.shared_objects.filter(row=>row.state==='ready').map(row=>sharedKey(String(row.digest)))]);
   let cursor:string|undefined;
   do{const page=await env.RESEARCH.list({prefix:'deletions/',cursor,limit:500});for(const item of page.objects)keys.add(item.key);cursor=page.truncated?page.cursor:undefined;}while(cursor);
   if(keys.size>10000)throw new ApiError(409,'Use provider export for this larger backup.');
@@ -103,7 +108,8 @@ export async function importBackupObject(env:Env,payload:unknown){
   const bytes=new TextEncoder().encode(JSON.stringify(data.value));
   if(bytes.length>8000000||await sha256(bytes)!==data.digest)throw new ApiError(422,'Backup bytes differ. Use the exact JSON serialization from the export.');
   let metadata:Record<string,string>|undefined;
-  if(data.key.startsWith('inputs/')){if(data.key!=='inputs/'+(await identity(data.value)).slice(7)+'.json')throw new ApiError(422,'Scientific input identity differs.');}
+  if(data.key.startsWith('inputs/')){const value=data.value as Record<string,unknown>;const digest=value?.version==='vah-stored-input-1'?StoredInput.parse(value).input_digest:await identity(value);if(data.key!=='inputs/'+digest.slice(7)+'.json')throw new ApiError(422,'Scientific input identity differs.');}
+  else if(data.key.startsWith('shared/')){if(data.key!==sharedKey(await identity(data.value)))throw new ApiError(422,'Shared input identity differs.');}
   else if(data.key.startsWith('deletions/')){
     const deletion=z.object({user_id:z.string().min(1).max(100),deleted_at:z.string()}).strict().parse(data.value);
     if(data.key!=='deletions/'+deletion.user_id+'.json')throw new ApiError(422,'Deletion identity differs.');

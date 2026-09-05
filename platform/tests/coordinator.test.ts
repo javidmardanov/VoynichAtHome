@@ -1,7 +1,7 @@
 import { beforeEach, afterEach, expect, test } from 'vitest';
 import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFile, readdir } from 'node:fs/promises';
-import { createGuest, guestFromToken, lease, submit, validateUnit, contributions, claimGuest, now, rate, reserveWindow, maintain, addCampaign, addUnit, MAX_INPUT_STORAGE } from '../src/lib/server/coordinator';
+import { createGuest, guestFromToken, lease, submit, validateUnit, contributions, claimGuest, now, rate, reserveWindow, maintain, addCampaign, addUnit, MAX_INPUT_STORAGE, recordRequest } from '../src/lib/server/coordinator';
 import { ownerAction } from '../src/lib/server/owner';
 import { identity } from '../src/lib/contracts';
 import { createAuth } from '../src/lib/server/auth';
@@ -11,6 +11,8 @@ import { backup, restore, portableBackup, portableObject, importBackupObject } f
 import { publishReport, requireRecoveryEvidence } from '../src/lib/server/reports';
 import { instantiateKernel } from '../src/lib/wasm';
 import kernelRelease from '../src/lib/generated/kernel.json';
+import {trustedRun} from '../src/lib/server/runner';
+import {loadInput} from '../src/lib/server/inputs';
 
 let mf: Miniflare, env: Env;
 const output={version:'test-result',score:123};
@@ -44,6 +46,26 @@ async function work(g:Awaited<ReturnType<typeof guest>>) {
 }
 const body=(w:{attempt_id:string;unit_id:string},result=output)=>({version:'vah-submission-1',attempt_id:w.attempt_id,unit_id:w.unit_id,result});
 
+test('generation and verification use duplicate submissions, trusted replay and fixed credit',async()=>{
+  env.SEARCH_KERNEL=await WebAssembly.compile(await readFile('src/lib/generated/search.wasm'));
+  await env.DB.prepare("INSERT INTO user (id,name,email,created_at,updated_at) VALUES ('fixture-owner','Owner fixture','owner@example.test',?,?)").bind(Date.now(),Date.now()).run();
+  await ownerAction(env,'fixture-owner',{action:'register-release'});
+  const base={...JSON.parse(await readFile('tests/fixtures/search-job.json','utf8')),iterations:32};
+  const legacy=JSON.parse(await readFile('../kernel/golden/gibberish.job.json','utf8'));
+  for(const type of ['generation','verification']){
+    const campaign=await addCampaign(env,{version:'vah-campaign-1',id:type,title:type+' contract fixture',question:'Do all scientific work types receive checked credit?',kind:type==='generation'?'generator-test':'recovery',protocol_url:'https://example.test/protocol',source_digests:base.model.training_sources,methods:[type==='generation'?'gibberish':base.algorithm],metric:'Exact trusted replay',comparisons:['The native fixture'],stopping_rule:'Exactly one unit and two checked attempts.',exposure:'Public operational fixture only.',recovery_evidence:[],max_units:1,interpretation:'This tests software contracts only.'});
+    const input=type==='generation'?{version:'vah-generation-input-1',experiment:campaign.digest,job:legacy}:{version:'vah-verification-input-1',experiment:campaign.digest,job:base,expected_result:instantiateKernel(env.SEARCH_KERNEL)({op:'run',job:base})};
+    const evaluations=type==='generation'?legacy.work_unit.seed_count:base.iterations,credit=type==='generation'?Math.ceil(evaluations*legacy.layout.lines.reduce((n:number,l:{words:number})=>n+l.words,0)*30/1000):32;
+    const specification={version:'vah-work-1',type,experiment_digest:campaign.digest,input_digest:await identity(input),algorithm:type==='generation'?'gibberish':base.algorithm,numeric_profile:type==='generation'?'wasm32-ieee754-libm-scalar-v1':'integer-ngram-libm-v1',release_id:kernelRelease.id,seed:type==='generation'?legacy.work_unit.seed_start:base.seed,start:0,budget:{evaluations,max_input_bytes:8000000,max_memory_bytes:100663296},work_estimate:credit};
+    await addUnit(env,campaign.id,specification,input,100);await env.DB.prepare("UPDATE campaigns SET status='active' WHERE id=?").bind(campaign.id).run();
+    const a=await guest(),b=await guest(),wa=await work(a),wb=await work(b),result=await trustedRun(env,input,kernelRelease.id);
+    for(const [g,w] of [[a,wa],[b,wb]] as const)await submit(env,g,{version:'vah-submission-1',attempt_id:w.attempt_id,unit_id:w.unit_id,result});
+    await validateUnit(env,wa.unit_id,(i,r)=>trustedRun(env,i,r));
+    expect((await contributions(env.DB,a,null)).credit).toBe(credit);expect((await contributions(env.DB,b,null)).credit).toBe(credit);
+    await submit(env,a,{version:'vah-submission-1',attempt_id:wa.attempt_id,unit_id:wa.unit_id,result});expect((await contributions(env.DB,a,null)).credit).toBe(credit);
+  }
+},60000);
+
 test('reports require completed work, recompute scores, and cannot invent a reviewed conclusion',async()=>{
   const job=JSON.parse(await readFile('tests/fixtures/search-job.json','utf8'));
   env.SEARCH_KERNEL=await WebAssembly.compile(await readFile('src/lib/generated/search.wasm'));
@@ -69,7 +91,7 @@ test('reports require completed work, recompute scores, and cannot invent a revi
 
 test('manuscript admission binds the reviewed model, passage layout and total computation budget',async()=>{
   const base=JSON.parse(await readFile('tests/fixtures/search-job.json','utf8'));
-  const condition={encoding:base.encoding,language:'latin',length:base.ciphertext.length,starts:8,iterations:base.iterations,algorithm:base.algorithm,beam_width:base.beam_width,model_digest:await identity(base.model)};
+  const condition={encoding:base.encoding,symbol_count:base.symbol_count,language:'latin',length:base.ciphertext.length,starts:8,iterations:base.iterations,algorithm:base.algorithm,beam_width:base.beam_width,model_digest:await identity(base.model)};
   const report={version:'vah-scientific-report-1',campaign_digest:await identity({testCampaign:1}),title:'Synthetic eligibility fixture',tier:'computation',summary:'A fixture for testing admission rules, with no real scientific evidence.',
     limitations:['All numbers here are software test fixtures.'],evidence_url:'https://example.test/fixture',record_ids:[await identity({testUnit:1})],comparison_assessment:'This is test data for a contract check, not research.',reviews:[],owner_attests_evidence_reviewed:true,
     recovery_scope:[{...condition,cases:100,exact_recoveries:100,evaluation_digest:await identity({fixture:'evaluation'}),freeze_url:'https://example.test/freeze',usefulness_rationale:'Synthetic fields used only to test bounded admission; no actual recovery-rate assertion.'}]};
@@ -79,6 +101,7 @@ test('manuscript admission binds the reviewed model, passage layout and total co
   const manifest={version:'vah-campaign-1',id:'bounded',title:'Bounded manuscript fixture',question:'Does admission enforce the exact reviewed condition?',kind:'manuscript',protocol_url:'https://example.test/protocol',source_digests:base.model.training_sources,methods:[base.algorithm],metric:'Fixed search score',comparisons:['Matched controls'],stopping_rule:'Only the declared eight start budget.',exposure:'Synthetic software fixture only, not manuscript research.',recovery_evidence:[reportDigest],max_units:8,interpretation:'Operational admission fixture, not evidence about the manuscript.',search_condition:condition,
     manuscript_layout:{transcription_digest:base.model.training_sources[0],ciphertext_digest:await identity(base.ciphertext),symbol_grouping:'One declared symbol per position.',space_handling:'Spaces omitted by the fixture.',lines:[{folio:'fixture',paragraph:'1',line:'1',offset:0,length:base.ciphertext.length,uncertain_positions:[]}],excluded_material:[]}};
   await expect(addCampaign(env,{...manifest,search_condition:{...condition,language:'italian'}})).rejects.toThrow('exact encoding');
+  await expect(addCampaign(env,{...manifest,search_condition:{...condition,symbol_count:46}})).rejects.toThrow('exact encoding');
   await expect(addCampaign(env,{...manifest,max_units:64})).rejects.toThrow('total start budget');
   const campaign=await addCampaign(env,manifest);
   const job={...base,experiment:campaign.digest,start:8};
@@ -97,6 +120,12 @@ test('25 simultaneous clients obtain bounded work; overload waits without spendi
   const budget=await env.DB.prepare('SELECT * FROM limits').first<{assignments:number;reserved_ms:number}>();
   const units=await env.DB.prepare('SELECT COUNT(*) n FROM units WHERE reserved=1').first<{n:number}>();
   expect(budget?.assignments).toBe(25); expect(budget?.reserved_ms).toBe(units!.n*100);
+});
+
+test('traffic is counted before an owner opens the first monthly budget',async()=>{
+  await env.DB.prepare('DELETE FROM limits').run();
+  await Promise.all([recordRequest(env.DB),recordRequest(env.DB),recordRequest(env.DB)]);
+  expect(await env.DB.prepare('SELECT requests,max_assignments,max_reserved_ms FROM limits').first()).toEqual({requests:3,max_assignments:0,max_reserved_ms:0});
 });
 test('duplicate execution, trusted replay and repeat submissions award credit once',async()=>{
   await addUnits(1); const a=await guest(),b=await guest(),wa=await work(a),wb=await work(b);
@@ -269,6 +298,16 @@ test('input storage is reserved before R2 writes and an interrupted import retri
   env.RESEARCH=bucket;
   await addUnit(env,campaign.id,first.work,first.job,100);
   expect((await env.DB.prepare("SELECT state FROM units WHERE campaign_id='imports'").first())?.state).toBe('open');
+  expect((await env.DB.prepare("SELECT input_bytes FROM units WHERE campaign_id='imports'").first<{input_bytes:number}>())!.input_bytes).toBeLessThan(2000);
+  const firstUnit=await env.DB.prepare("SELECT input_key,input_digest FROM units WHERE campaign_id='imports'").first<{input_key:string;input_digest:string}>();
+  expect(await loadInput(env,firstUnit!.input_key,firstUnit!.input_digest)).toEqual(first.job);
+  expect((await env.RESEARCH.list({prefix:'shared/'})).objects).toHaveLength(2);
+  // Simulate the full input representation left by an older deployment.
+  const historical=JSON.stringify(first.job);await env.RESEARCH.put(firstUnit!.input_key,historical);
+  await env.DB.prepare("UPDATE units SET state='importing' WHERE campaign_id='imports'").run();
+  await addUnit(env,campaign.id,first.work,first.job,100);
+  expect(await (await env.RESEARCH.get(firstUnit!.input_key))!.text()).toBe(historical);
+  expect((await env.DB.prepare("SELECT input_bytes FROM units WHERE campaign_id='imports'").first<{input_bytes:number}>())!.input_bytes).toBe(new TextEncoder().encode(historical).length);
   const second=await pair(1);
   await env.DB.prepare("UPDATE units SET input_bytes=? WHERE campaign_id='imports'").bind(MAX_INPUT_STORAGE).run();
   await expect(addUnit(env,campaign.id,second.work,second.job,100)).rejects.toThrow('Storage reserve');
@@ -277,4 +316,15 @@ test('input storage is reserved before R2 writes and an interrupted import retri
   const third=await pair(2);
   const raced=await Promise.allSettled([addUnit(env,campaign.id,second.work,second.job,100),addUnit(env,campaign.id,third.work,third.job,100)]);
   expect(raced.filter(r=>r.status==='fulfilled')).toHaveLength(1);expect((await env.RESEARCH.list({prefix:'inputs/'})).objects).toHaveLength(2);
+  expect((await env.RESEARCH.list({prefix:'shared/'})).objects).toHaveLength(2);
+  const portable=await portableBackup(env),shared=portable.manifest.objects.find(o=>o.key.startsWith('shared/'))!;
+  expect(portable.manifest.objects.filter(o=>o.key.startsWith('shared/'))).toHaveLength(2);
+  const value=JSON.parse(await (await env.RESEARCH.get(shared.key))!.text());
+  env.ASSIGNMENTS_ENABLED='false';env.DEPLOYMENT_STAGE='staging';await env.DB.prepare("UPDATE controls SET stopped=1 WHERE id='main'").run();
+  await env.RESEARCH.delete(shared.key);
+  await expect(restore(env,portable.manifest.database_key)).rejects.toThrow('research objects');
+  expect((await env.DB.prepare("SELECT COUNT(*) n FROM units WHERE campaign_id='imports'").first())?.n).toBe(2);
+  await importBackupObject(env,{key:shared.key,digest:shared.digest,value});
+  await restore(env,portable.manifest.database_key);
+  expect(await loadInput(env,firstUnit!.input_key,firstUnit!.input_digest)).toEqual(first.job);
 });

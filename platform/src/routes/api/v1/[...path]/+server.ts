@@ -67,9 +67,9 @@ const handler:RequestHandler=async(event)=>{
       const record=await env.DB.prepare(`SELECT u.id,u.specification,u.input_key,u.trusted_result,u.trusted_hash,u.state,r.module_digest,r.module_path,r.state AS release_state
         FROM units u JOIN campaigns c ON c.id=u.campaign_id JOIN releases r ON r.id=u.release_id WHERE u.id=? AND c.status<>'draft'`).bind(decodeURIComponent(path.slice(8))).first<{id:string;specification:string;input_key:string;trusted_result:string|null;trusted_hash:string|null;state:string;module_digest:string;module_path:string;release_state:string}>();
       if(!record)throw new ApiError(404,'Published record not found.');
-      const object=await env.RESEARCH.get(record.input_key);if(!object||object.size>8000000)throw new ApiError(503,'Research input unavailable.');
       const work=JSON.parse(record.specification);
-      return json({version:'vah-reproduction-1',unit_id:record.id,work,job:JSON.parse(await object.text()),result:record.trusted_result?JSON.parse(record.trusted_result):null,result_hash:record.trusted_hash,state:record.state,release:{id:work.release_id,digest:record.module_digest,url:record.module_path,state:record.release_state}});
+      const {loadInput}=await import('$lib/server/inputs');
+      return json({version:'vah-reproduction-1',unit_id:record.id,work,job:await loadInput(env,record.input_key,work.input_digest),result:record.trusted_result?JSON.parse(record.trusted_result):null,result_hash:record.trusted_hash,state:record.state,release:{id:work.release_id,digest:record.module_digest,url:record.module_path,state:record.release_state}});
     }
     if(path.startsWith('campaigns/')&&!mutating){
       const campaign=await env.DB.prepare("SELECT * FROM campaigns WHERE id=? AND status<>'draft'").bind(path.slice(10)).first();

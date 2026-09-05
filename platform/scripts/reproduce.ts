@@ -4,13 +4,14 @@ import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import {resolve,dirname} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
-import {Campaign,Reproduction,identity,sha256,validateSearchWork} from '../src/lib/contracts';
+import {Campaign,Reproduction,identity,sha256,validateScientificWork,executionRequest} from '../src/lib/contracts';
+import {approvedRelease} from '../src/lib/releases';
 import approved from '../src/lib/generated/kernel.json';
 
 const sourceMode=fileURLToPath(import.meta.url).endsWith('.ts');
 const {values}=parseArgs({args:process.argv.slice(sourceMode?3:2),options:{server:{type:'string'},campaign:{type:'string'},out:{type:'string'},offline:{type:'boolean',default:false},kernel:{type:'string'}}});
 if(!values.out||(!values.offline&&(!values.server||!values.campaign)))throw Error('Use --server HTTPS_ORIGIN --campaign ID --out DIRECTORY; then --offline --out DIRECTORY to repeat without the service.');
-const folder=resolve(values.out),root=resolve(dirname(fileURLToPath(import.meta.url)),'../..'),native=resolve(values.kernel??resolve(sourceMode?resolve(root,'kernel/target/release'):dirname(fileURLToPath(import.meta.url)),'vah-search'+(process.platform==='win32'?'.exe':'')));
+const folder=resolve(values.out),root=resolve(dirname(fileURLToPath(import.meta.url)),'../..'),native=resolve(values.kernel??resolve(sourceMode?resolve(root,'kernel/target/release'):dirname(fileURLToPath(import.meta.url)),'vah-worker'+(process.platform==='win32'?'.exe':'')));
 const origin=values.server?new URL(values.server):null;
 if(origin&&(origin.username||origin.password||origin.pathname!=='/'||origin.hash||origin.search||!(origin.protocol==='https:'||(origin.protocol==='http:'&&['localhost','127.0.0.1','[::1]'].includes(origin.hostname)))))throw Error('Use an HTTPS site origin or HTTP loopback.');
 await mkdir(resolve(folder,'records'),{recursive:true});await mkdir(resolve(folder,'replayed'),{recursive:true});
@@ -51,14 +52,14 @@ for(const entry of index.records){
   if(!/^sha256:[0-9a-f]{64}$/.test(entry.unit_id)||seen.has(entry.unit_id))throw Error('Invalid or repeated work identity');seen.add(entry.unit_id);
   const bytes=await readFile(resolve(folder,'records',entry.unit_id.slice(7)+'.json'));
   if(await sha256(bytes)!==entry.file_digest)throw Error('Downloaded file changed');
-  const record=Reproduction.parse(decode(bytes));validateSearchWork(record.work,record.job);
+  const record=Reproduction.parse(decode(bytes));validateScientificWork(record.work,record.job);const compatible=approvedRelease(record.release.id,record.job);
   if(record.unit_id!==entry.unit_id||await identity(record.work)!==entry.unit_id||await identity(record.job)!==record.work.input_digest||record.work.experiment_digest!==index.manifest_digest)throw Error('Scientific record failed its identity check');
-  if(record.release.id!==approved.id||record.release.digest!==approved.digest||record.release.state!=='approved')throw Error('Restore the compatible, non-revoked release before replaying these records');
+  if(record.work.release_id!==compatible.id||record.release.digest!==compatible.digest||record.release.url!==compatible.url||record.release.state!=='approved')throw Error('Restore the compatible, non-revoked release before replaying these records');
   if(!record.result){results.push({unit_id:entry.unit_id,outcome:'pending-trusted-result'});continue;}
   if(await identity(record.result)!==record.result_hash)throw Error('Published result hash differs');
   const input=resolve(folder,'replayed','job.json'),output=resolve(folder,'replayed',entry.unit_id.slice(7)+'.json');
-  await writeFile(input,JSON.stringify(record.job));const began=performance.now();
-  await new Promise<void>((accept,reject)=>{const child=spawn(native,['run','--job',input,'--out',output],{stdio:['ignore','ignore','pipe'],windowsHide:true});let error='';child.stderr.on('data',b=>{if(error.length<2000)error+=b;});child.on('error',reject);child.on('close',code=>code===0?accept():reject(Error('Local Rust replay failed: '+error)));});
+  await writeFile(input,JSON.stringify(executionRequest(record.job)));const began=performance.now();
+  await new Promise<void>((accept,reject)=>{const child=spawn(native,['--input',input,'--out',output],{stdio:['ignore','ignore','pipe'],windowsHide:true});let error='';child.stderr.on('data',b=>{if(error.length<2000)error+=b;});child.on('error',reject);child.on('close',code=>code===0?accept():reject(Error('Local Rust replay failed: '+error)));});
   const actual=JSON.parse(await readFile(output,'utf8'));
   if(await identity(actual)!==record.result_hash)throw Error('Native replay differs for '+entry.unit_id);
   results.push({unit_id:entry.unit_id,outcome:'exact-replay',elapsed_ms:performance.now()-began});

@@ -1,6 +1,7 @@
-import { ScientificReport, identity, SearchJob, SearchResult, RecoveryCondition } from '../contracts';
+import { ScientificReport, identity, ScientificInput, ScientificResult, RecoveryCondition } from '../contracts';
 import { ApiError, now } from './coordinator';
 import { trustedChecker } from './runner';
+import {loadInput} from './inputs';
 
 export async function publishReport(env:Env,value:unknown){
   const report=ScientificReport.parse(value),digest=await identity(report);
@@ -13,13 +14,12 @@ export async function publishReport(env:Env,value:unknown){
     const unit=await env.DB.prepare(`SELECT u.*,r.state AS release_state FROM units u JOIN releases r ON r.id=u.release_id WHERE u.id=? AND u.campaign_id=?`).bind(unitId,campaign.id)
       .first<{state:string;release_id:string;release_state:string;input_key:string;input_digest:string;trusted_result:string|null;trusted_hash:string|null}>();
     if(!unit||unit.state!=='complete'||unit.release_state!=='approved'||!unit.trusted_result)throw new ApiError(409,'Report records must be completed and trusted under an approved release.');
-    const object=await env.RESEARCH.get(unit.input_key);if(!object||object.size>8000000)throw new ApiError(503,'Report input unavailable.');
-    const job=SearchJob.parse(JSON.parse(await object.text())),result=SearchResult.parse(JSON.parse(unit.trusted_result));
+    const job=ScientificInput.parse(await loadInput(env,unit.input_key,unit.input_digest)),result=ScientificResult.parse(JSON.parse(unit.trusted_result));
     if(await identity(job)!==unit.input_digest||await identity(result)!==unit.trusted_hash)throw new ApiError(409,'Report source integrity differs.');
     // Recheck the actual key, unchanged output and score on every publication.
     // Full execution was already trusted-replayed before the unit completed.
-    check(job,result,unit.release_id);
-    if(report.tier!=='computation'&&job.ciphertext.length<1000)throw new ApiError(422,'A promoted candidate must cover substantial text, at least 1,000 normalized symbols.');
+    await check(job,result,unit.release_id);
+    if(report.tier!=='computation'&&(job.version!=='vah-search-1'||job.ciphertext.length<1000))throw new ApiError(422,'A promoted candidate must contain a decoder search covering at least 1,000 normalized symbols.');
   }
   await env.DB.batch([
     env.DB.prepare(`INSERT OR IGNORE INTO reports (digest,campaign_id,tier,title,document,created_at) SELECT ?,?,?,?,?,?

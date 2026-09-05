@@ -1,10 +1,31 @@
 //! Small C ABI for bounded search calls; no host imports.
 use serde::Deserialize;
 use std::sync::Mutex;
+pub mod generation;
 static OUTPUT: Mutex<Vec<u8>> = Mutex::new(Vec::new());
 #[derive(Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
 pub enum Request {
+    Generate {
+        input: generation::Input,
+    },
+    GenerationStep {
+        input: generation::Input,
+        checkpoint: Option<generation::Checkpoint>,
+    },
+    GenerationFinish {
+        input: generation::Input,
+        checkpoint: generation::Checkpoint,
+    },
+    Verify {
+        job: vah_search::Job,
+        result: vah_search::ResultRecord,
+    },
+    VerificationFinish {
+        job: vah_search::Job,
+        result: vah_search::ResultRecord,
+        checkpoint: vah_search::Checkpoint,
+    },
     Run {
         job: vah_search::Job,
     },
@@ -25,6 +46,19 @@ pub enum Request {
 pub fn execute(s: &str) -> Result<String, String> {
     let request: Request = serde_json::from_str(s).map_err(|e| e.to_string())?;
     let value = match request {
+        Request::Generate { input } => Ok(generation::run(&input)?),
+        Request::GenerationStep { input, checkpoint } => serde_json::to_value(generation::step(&input, checkpoint)?),
+        Request::GenerationFinish { input, checkpoint } => Ok(generation::finish(&input, checkpoint)?),
+        Request::Verify { job, result } => {
+            vah_search::check_candidate(&job, &result)?;
+            let replay = vah_search::run(&job)?;
+            Ok(serde_json::json!({"version":"vah-verification-result-1","job_digest":replay.job_digest,"expected_result_digest":result.result_digest,"actual_result_digest":replay.result_digest,"matches":replay==result}))
+        },
+        Request::VerificationFinish { job, result, checkpoint } => {
+            vah_search::check_candidate(&job, &result)?;
+            let replay = vah_search::finish(&job, checkpoint)?;
+            Ok(serde_json::json!({"version":"vah-verification-result-1","job_digest":replay.job_digest,"expected_result_digest":result.result_digest,"actual_result_digest":replay.result_digest,"matches":replay==result}))
+        },
         Request::Run { job } => serde_json::to_value(vah_search::run(&job)?),
         Request::Step {
             job,

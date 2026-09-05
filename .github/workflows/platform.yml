@@ -21,12 +21,12 @@ jobs:
       - run: npx --yes npm@11.19.1 ci
       - name: Build the pinned native search
         working-directory: kernel
-        run: cargo build --locked --release -p vah-search
+        run: cargo build --locked --release -p vah-search -p vah-search-wasm --bins
       - name: Build the bounded WebAssembly module
         working-directory: kernel
         env:
           RUSTFLAGS: '-C link-arg=--max-memory=100663296'
-        run: cargo build --locked --release --target wasm32-unknown-unknown -p vah-search-wasm
+        run: cargo build --locked --release --target wasm32-unknown-unknown -p vah-search-wasm --lib
       - run: npm run kernel:package --workspace platform
       - run: npm run check
       - run: npm test

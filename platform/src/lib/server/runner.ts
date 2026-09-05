@@ -1,6 +1,7 @@
 import { instantiateKernel } from '../wasm';
 import release from '../generated/kernel.json';
-import { SearchJob, SearchResult, sha256 } from '../contracts';
+import { ScientificInput, ScientificResult, executionRequest, identity, sha256 } from '../contracts';
+import { approvedRelease } from '../releases';
 let developmentModule:WebAssembly.Module|undefined;
 async function trustedModule(env:Env) {
   let module=env.SEARCH_KERNEL;
@@ -18,13 +19,18 @@ async function trustedModule(env:Env) {
   return module;
 }
 export async function trustedRun(env:Env,input:Record<string,unknown>,releaseId:string) {
-  if(releaseId!==release.id)throw Error('This deployment cannot replay the requested release. Restore its compatible verifier.');
-  return instantiateKernel(await trustedModule(env))({op:'run',job:SearchJob.parse(input)});
+  const parsed=ScientificInput.parse(input);approvedRelease(releaseId,parsed);
+  return instantiateKernel(await trustedModule(env))(executionRequest(parsed));
 }
 export async function trustedChecker(env:Env){
   const invoke=instantiateKernel(await trustedModule(env));
-  return (job:SearchJob,result:SearchResult,releaseId:string)=>{
-    if(releaseId!==release.id)throw Error('Report verifier release differs.');
-    return invoke({op:'check',job,result});
+  return async(job:ScientificInput,value:unknown,releaseId:string)=>{
+    approvedRelease(releaseId,job);const result=ScientificResult.parse(value);
+    if(job.version==='vah-search-1'&&result.version==='vah-search-result-1')return invoke({op:'check',job,result});
+    const replay=job.version==='vah-generation-input-1'&&result.version==='vah-generation-result-1'
+      ?invoke({op:'generation_finish',input:job,checkpoint:{version:'vah-generation-checkpoint-1',job_digest:await identity(job),done:job.job.work_unit.seed_count,seeds:result.generation.seeds}})
+      :invoke(executionRequest(job));
+    if(await identity(replay)!==await identity(result))throw Error('Report result failed its scientific checks.');
+    return {candidate_checked:true,execution_proven:false};
   };
 }

@@ -16,7 +16,7 @@ export const SearchJob = z.object({
   seed: z.number().int().min(0).max(4294967295), start: z.number().int().min(0).max(4294967295),
   iterations: z.number().int().min(1).max(100000), beam_width: z.number().int().min(1).max(64),
   model: z.object({ version: z.literal('vah-ngram-1'), alphabet: z.literal('abcdefghilmnopqrstuvxyz'),
-    training_sources: z.array(Digest).min(1).max(100), quadgrams: z.array(z.number().int().min(-1000000).max(0)).length(279841),
+    training_sources: z.array(z.union([Digest,z.string().regex(/^[0-9a-f]{64}$/)])).min(1).max(100), quadgrams: z.array(z.number().int().min(-1000000).max(0)).length(279841),
     unigrams: z.array(z.number().int().min(-1000000).max(0)).length(23) }).strict()
 }).strict().superRefine((job,ctx) => {
   if (job.ciphertext.some(c=>c>=job.symbol_count) || (job.encoding==='substitution' && job.symbol_count!==23)
@@ -27,10 +27,28 @@ export const SearchResult = z.object({version:z.literal('vah-search-result-1'),j
   key:z.array(z.number().int().min(0).max(22)).min(2).max(92),plaintext:z.string().min(4).max(20000).regex(/^[abcdefghilmnopqrstuvxyz]+$/),
   score:z.number().int().min(-20000000000).max(0),evaluations:z.number().int().min(0).max(100000),trace:z.array(Digest).max(1000),result_digest:Digest}).strict();
 export type SearchResult=z.infer<typeof SearchResult>;
+export const GenerationInput=z.object({version:z.literal('vah-generation-input-1'),experiment:Digest,job:z.object({
+  work_unit:z.object({schema_version:z.literal('vah-work-unit-0.2'),experiment_id:z.string().min(1).max(160),family:z.enum(['gibberish','bagofwords','charmarkov','selfcite','slotgram']),
+    params:z.record(z.string(),z.union([z.string(),z.number().finite(),z.boolean(),z.null()])),fingerprint_version:z.literal('fingerprint-v1'),target_digest:Digest,layout_digest:Digest,resources_digest:Digest.nullable(),
+    seed_start:z.number().int().min(0).max(4294967287),seed_count:z.number().int().min(1).max(8),metric:z.enum(['z','mahalanobis']).optional()}).strict(),
+  target:z.record(z.string(),z.unknown()),layout:z.object({lines:z.array(z.object({words:z.number().int().min(1).max(65535),para_start:z.boolean(),para_end:z.boolean()}).strict()).min(1).max(10000)}).strict(),
+  resources:z.record(z.string(),z.unknown()).optional()}).strict()}).strict().superRefine((input,ctx)=>{
+    if(input.job.layout.lines.reduce((n,l)=>n+l.words,0)>50000)ctx.addIssue({code:'custom',message:'Generation exceeds the 50,000-word bound.'});
+  });
+export type GenerationInput=z.infer<typeof GenerationInput>;
+export const VerificationInput=z.object({version:z.literal('vah-verification-input-1'),experiment:Digest,job:SearchJob,expected_result:SearchResult}).strict();
+export type VerificationInput=z.infer<typeof VerificationInput>;
+export const ScientificInput=z.union([SearchJob,GenerationInput,VerificationInput]);
+export type ScientificInput=z.infer<typeof ScientificInput>;
+export const StoredInput=z.object({version:z.literal('vah-stored-input-1'),input_digest:Digest,body:z.record(z.string(),z.unknown()),
+  references:z.array(z.object({path:z.enum(['model','ciphertext','job.model','job.ciphertext']),digest:Digest}).strict()).length(2)}).strict();
+export const GenerationResult=z.object({version:z.literal('vah-generation-result-1'),job_digest:Digest,generation:z.record(z.string(),z.unknown())}).strict();
+export const VerificationResult=z.object({version:z.literal('vah-verification-result-1'),job_digest:Digest,expected_result_digest:Digest,actual_result_digest:Digest,matches:z.boolean()}).strict();
+export const ScientificResult=z.union([SearchResult,GenerationResult,VerificationResult]);
 export const Release = z.object({id:Identifier,digest:Digest,url:z.string().regex(/^\/kernels\/[0-9a-f]{64}\.wasm$/)}).strict();
 export const Lease = z.object({state:z.literal('work'),version:z.literal('vah-lease-1'),attempt_id:Identifier,unit_id:Digest,expires_at:z.number().int().nonnegative(),work:Work,
   input_url:z.string().regex(/^\/api\/v1\/work\/[a-zA-Z0-9_-]+$/),release:Release}).strict();
-export const Reproduction = z.object({version:z.literal('vah-reproduction-1'),unit_id:Digest,work:Work,job:SearchJob,result:SearchResult.nullable(),result_hash:Digest.nullable(),
+export const Reproduction = z.object({version:z.literal('vah-reproduction-1'),unit_id:Digest,work:Work,job:ScientificInput,result:ScientificResult.nullable(),result_hash:Digest.nullable(),
   state:z.enum(['importing','open','checking','validation_error','delivery_exhausted','complete']),release:Release.extend({state:z.enum(['approved','revoked'])})}).strict();
 export const PublicName=z.string().trim().min(2).max(48).regex(/^[\p{L}\p{N} ._'’-]+$/u,'Use letters, numbers, spaces, or simple punctuation.');
 export const ProfileUpdate=z.object({display_name:PublicName,public:z.boolean()}).strict();
@@ -45,8 +63,26 @@ export function validateSearchWork(work: Work, input: unknown) {
   if (work.work_estimate!==Math.ceil(job.iterations*job.ciphertext.length/1000)) throw new Error('Work estimate does not match the published formula.');
   return job;
 }
+export function validateScientificWork(work:Work,input:unknown):ScientificInput{
+  if(work.type==='search')return validateSearchWork(work,input);
+  if(work.type==='verification'){
+    const wrapper=VerificationInput.parse(input),job=wrapper.job;
+    if(work.numeric_profile!=='integer-ngram-libm-v1'||work.experiment_digest!==wrapper.experiment||work.algorithm!==job.algorithm||work.seed!==job.seed||work.start!==job.start
+      ||work.budget.evaluations!==job.iterations||work.budget.max_memory_bytes!==100663296||work.work_estimate!==Math.ceil(job.iterations*job.ciphertext.length/1000))throw Error('Verification work differs from its declared search.');
+    return wrapper;
+  }
+  const wrapper=GenerationInput.parse(input),job=wrapper.job,unit=job.work_unit,words=job.layout.lines.reduce((n,l)=>n+l.words,0);
+  if(work.numeric_profile!=='wasm32-ieee754-libm-scalar-v1'||work.experiment_digest!==wrapper.experiment||work.algorithm!==unit.family||work.seed!==unit.seed_start||work.start!==0
+    ||work.budget.evaluations!==unit.seed_count||work.budget.max_memory_bytes!==100663296||work.work_estimate!==Math.ceil(unit.seed_count*words*30/1000))throw Error('Generation work differs from the bounded legacy job.');
+  return wrapper;
+}
+export function executionRequest(input:ScientificInput){
+  if(input.version==='vah-generation-input-1')return {op:'generate',input};
+  if(input.version==='vah-verification-input-1')return {op:'verify',job:input.job,result:input.expected_result};
+  return {op:'run',job:input};
+}
 export const Submission = z.object({ version: z.literal('vah-submission-1'), attempt_id: Identifier, unit_id: Digest, result: z.record(z.string(),z.unknown()) }).strict();
-export const RecoveryCondition=z.object({encoding:z.enum(['substitution','balanced-homophonic','naibbe-global-permutation']),language:z.enum(['latin','italian']),
+export const RecoveryCondition=z.object({encoding:z.enum(['substitution','balanced-homophonic','naibbe-global-permutation']),symbol_count:z.number().int().min(2).max(92),language:z.enum(['latin','italian']),
   length:z.union([z.literal(1000),z.literal(5000),z.literal(20000)]),starts:z.union([z.literal(1),z.literal(8),z.literal(64)]),iterations:z.number().int().min(1).max(100000),
   algorithm:z.enum(['beam-v1','restart-anneal-v1']),beam_width:z.number().int().min(1).max(64),model_digest:Digest}).strict();
 export const Campaign = z.object({
