@@ -393,6 +393,62 @@ def evaluate_panel(args):
     print(json.dumps({'complete': report['complete'], 'rows': len(summaries), 'report': str(args.out)}))
 
 
+def replay_panel(args):
+    """Rebuild on any supported host and compare complete outputs, without answers."""
+    worker, output = args.worker.resolve(), args.out.resolve()
+    if output == worker or worker in output.parents:
+        raise ValueError('Store replay audits outside the immutable worker inputs')
+    output.mkdir(parents=True, exist_ok=True)
+    manifest, binary = load(worker / 'manifest.json'), kernel_path()
+    replay_kernel = file_digest(binary)
+    model, model_bytes, count, records = None, None, 0, []
+    with tempfile.TemporaryDirectory(dir=output) as directory:
+        for row, job, path in jobs(worker, manifest):
+            if job['model'] is not model:
+                model, model_bytes = job['model'], rfc8785.dumps(job['model'])
+            expected = load(path)
+            if expected['job_digest'] != job_digest(job, model_bytes):
+                raise ValueError('Recorded job identity differs')
+            if expected['status'] != 'complete':
+                records.append({'run': path.name, 'status': 'original-operational-failure'})
+                continue
+            audit_path = output / path.name
+            retries = sorted((output / 'retries').glob(path.stem + '-*.json'))
+            if retries:
+                audit_path = retries[-1]
+            audit = None
+            if audit_path.exists():
+                audit = load(audit_path)
+                if audit['kernel_digest'] != replay_kernel or audit['expected_digest'] != digest(expected['result']):
+                    raise ValueError('Replay audit belongs to different inputs or executable')
+                if audit['status'] != 'exact-replay' and audit['actual_digest'] is None and args.retry_operational:
+                    (output / 'retries').mkdir(exist_ok=True)
+                    audit_path = output / 'retries' / (path.stem + f'-{len(retries)+1:04}.json')
+                    audit = None
+            if audit is None:
+                actual = execute(job, binary, Path(directory), manifest['spec']['timeout_seconds'], model_bytes)
+                audit = {'run': path.name, 'job_digest': expected['job_digest'], 'kernel_digest': replay_kernel,
+                         'expected_digest': digest(expected['result']),
+                         'actual_digest': digest(actual['result']) if actual['status'] == 'complete' else None,
+                         'status': 'replay-operational-failure' if actual['status'] != 'complete' else 'exact-replay' if actual['result'] == expected['result'] else 'scientific-output-mismatch',
+                         'execution_status': actual['status'], 'exit_code': actual['exit_code'], 'error': actual.get('error'),
+                         'elapsed_ms': actual['elapsed_ms'], 'peak_sampled_rss_bytes': actual['peak_sampled_rss_bytes']}
+                save(audit_path, audit)
+                count += 1
+            records.append(audit)
+            if audit['status'] != 'exact-replay':
+                raise ValueError('Replay differs: ' + path.name)
+            if args.limit and count >= args.limit:
+                break
+    expected_count = len(manifest['cases']) * (1 + max(manifest['spec']['starts']))
+    report = {'version': 'vah-panel-replay-1', 'original_kernel_digest': manifest['kernel_digest'],
+              'replay_kernel_digest': replay_kernel, 'expected_runs': expected_count, 'records': records,
+              'complete': len(records) == expected_count and all(r['status'] == 'exact-replay' for r in records),
+              'interpretation': 'Exact scientific outputs, including traces; no original messages or keys are read by replay.'}
+    save(output / 'replay-report.json', report)
+    print(json.dumps({'complete': report['complete'], 'replayed': len(records), 'expected': expected_count}))
+
+
 def freeze_settings(args):
     spec = validate_spec(load(args.spec))
     development = load(args.development_report)
@@ -429,12 +485,17 @@ def main():
     evaluate.add_argument('--worker', type=Path, required=True)
     evaluate.add_argument('--custodian', type=Path, required=True)
     evaluate.add_argument('--out', type=Path, required=True)
+    replay = commands.add_parser('replay')
+    replay.add_argument('--worker', type=Path, required=True)
+    replay.add_argument('--out', type=Path, required=True)
+    replay.add_argument('--limit', type=int, default=0)
+    replay.add_argument('--retry-operational', action='store_true', help='Retain failed audit attempts and retry only runs that returned no scientific output')
     freeze = commands.add_parser('freeze')
     freeze.add_argument('--spec', type=Path, required=True)
     freeze.add_argument('--development-report', type=Path, required=True)
     freeze.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
-    {'prepare': prepare_panel, 'run': run_panel, 'evaluate': evaluate_panel, 'freeze': freeze_settings}[args.command](args)
+    {'prepare': prepare_panel, 'run': run_panel, 'evaluate': evaluate_panel, 'replay': replay_panel, 'freeze': freeze_settings}[args.command](args)
 
 
 if __name__ == '__main__':
