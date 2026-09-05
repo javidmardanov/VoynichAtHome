@@ -41,7 +41,7 @@ export async function rate(db: D1Database, key: string, maximum: number, seconds
     ON CONFLICT(key) DO UPDATE SET count=CASE WHEN last_request <= ? THEN 1 ELSE count+1 END,
     last_request=CASE WHEN last_request <= ? THEN excluded.last_request ELSE last_request END RETURNING count`)
     .bind(id(),key,now(),now()-seconds,now()-seconds).first<{count:number}>();
-  if (!row || row.count>maximum) throw new ApiError(429,'Please wait before trying again.');
+  if (!row || row.count>maximum) throw new ApiError(429,'Too many requests. Wait briefly and try again.');
 }
 export async function claimGuest(db: D1Database, guest: Guest, userId: string) {
   const result=await db.prepare('UPDATE guests SET user_id = ? WHERE id = ? AND (user_id IS NULL OR user_id = ?) RETURNING id').bind(userId,guest.id,userId).first();
@@ -72,9 +72,9 @@ export async function status(env: Env) {
 
 export async function lease(env: Env, guest: Guest) {
   if (guest.blocked) throw new ApiError(403,'This session cannot obtain work.');
-  if (env.ASSIGNMENTS_ENABLED!=='true') return {state:'idle',message:'No work is currently available.',retry_after_seconds:300};
+  if (env.ASSIGNMENTS_ENABLED!=='true') return {state:'idle',message:'New assignments are closed.',retry_after_seconds:300};
   const control=await env.DB.prepare("SELECT stopped FROM controls WHERE id='main'").first<{stopped:number}>();
-  if (!control || control.stopped) return {state:'idle',message:'Work assignments are paused by the operator.',retry_after_seconds:300};
+  if (!control || control.stopped) return {state:'idle',message:'The project has paused new assignments.',retry_after_seconds:300};
   await reserveWindow(env.DB);
   const window=month(), attemptId=id(), at=now();
   // The database is the queue. INSERT SELECT and all budget changes are one
@@ -103,7 +103,7 @@ export async function lease(env: Env, guest: Guest) {
   const attempt=await env.DB.prepare('SELECT id,unit_id,expires_at FROM attempts WHERE id=?').bind(attemptId).first<{id:string;unit_id:string;expires_at:number}>();
   if (!attempt) {
     const open=await env.DB.prepare(`SELECT COUNT(*) AS n FROM units u JOIN campaigns c ON c.id=u.campaign_id WHERE c.status='active' AND u.state IN ('open','checking')`).first<{n:number}>();
-    return open?.n?{state:'waiting',message:'Work is waiting for capacity or checks.',retry_after_seconds:30}:{state:'idle',message:'No work is currently available.',retry_after_seconds:300};
+    return open?.n?{state:'waiting',message:'Work is waiting for capacity or result checks.',retry_after_seconds:30}:{state:'idle',message:'No new work is currently available.',retry_after_seconds:300};
   }
   return assignment(env,attempt);
 }

@@ -8,11 +8,11 @@ self.onmessage=async({data}:{data:Message})=>{
   if(busy)return;busy=true;
   try {
     const {lease}=data,work=Work.parse(lease.work),job=validateScientificWork(work,data.job),approved=approvedRelease(work.release_id,job);
-    if(await identity(work)!==lease.unit_id || await identity(job)!==work.input_digest)throw Error('Work failed its identity check.');
-    if(work.release_id!==approved.id||lease.release.id!==approved.id||lease.release.digest!==approved.digest||lease.release.url!==approved.url)throw Error('This worker release is not approved by this application.');
-    const response=await fetch(approved.url);if(!response.ok)throw Error('Worker module is unavailable.');
+    if(await identity(work)!==lease.unit_id || await identity(job)!==work.input_digest)throw Error('The task does not match its published identity. Work stopped.');
+    if(work.release_id!==approved.id||lease.release.id!==approved.id||lease.release.digest!==approved.digest||lease.release.url!==approved.url)throw Error('The project software for this task is no longer approved. Saved work cannot continue.');
+    const response=await fetch(approved.url);if(!response.ok)throw Error('The project software for this task could not be loaded. Your checkpoint remains saved.');
     const bytes=new Uint8Array(await response.arrayBuffer());
-    if(await sha256(bytes)!==approved.digest)throw Error('Worker module failed its digest check.');
+    if(await sha256(bytes)!==approved.digest)throw Error('The downloaded project software does not match its published digest. Work stopped.');
     const execute=instantiateKernel(await WebAssembly.compile(bytes));
     let checkpoint=data.checkpoint;
     const intensity=Math.min(0.75,Math.max(0.1,data.intensity));

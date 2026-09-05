@@ -19,7 +19,7 @@ async function body(request:Request) {
 const handler:RequestHandler=async(event)=>{
   const {request,url,params,platform,cookies,locals}=event;
   try{
-    if(!platform?.env?.DB)throw new ApiError(503,'Coordinator storage is unavailable.');
+    if(!platform?.env?.DB)throw new ApiError(503,'Project records are temporarily unavailable.');
     const env=platform.env,path=params.path??'',mutating=request.method!=='GET';
     await recordRequest(env.DB);
     if(mutating && request.headers.get('origin')!==url.origin)throw new ApiError(403,'This action requires the site’s origin.');
@@ -83,7 +83,7 @@ const handler:RequestHandler=async(event)=>{
     if(error instanceof ZodError)return json({error:'Input does not match the versioned contract.',fields:error.issues.map(i=>i.path.join('.')).slice(0,20)},{status:422});
     if(error instanceof ApiError)return json({error:error.message},{status:error.status});
     console.error('Coordinator failure',error instanceof Error?error.name:'Unknown');
-    return json({error:'The coordinator could not complete this request. Please retry.'},{status:503});
+    return json({error:'The server could not complete this request. Try again.'},{status:503});
   }
 };
 export const GET=handler;export const POST=handler;
