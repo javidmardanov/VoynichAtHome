@@ -162,7 +162,9 @@ test('25 simultaneous clients obtain bounded work; overload waits without spendi
   const budget=await env.DB.prepare('SELECT * FROM limits').first<{assignments:number;reserved_ms:number}>();
   const units=await env.DB.prepare('SELECT COUNT(*) n FROM units WHERE reserved=1').first<{n:number}>();
   expect(budget?.assignments).toBe(25); expect(budget?.reserved_ms).toBe(units!.n*100);
-});
+  // This includes importing 20 inputs plus concurrent D1 calls through Miniflare.
+  // Slow Windows runners can exceed 30 seconds; this is not a latency assertion.
+},90000);
 
 test('traffic is counted before an owner opens the first monthly budget',async()=>{
   await env.DB.prepare('DELETE FROM limits').run();
