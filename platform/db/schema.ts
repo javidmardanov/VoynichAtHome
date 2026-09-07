@@ -80,6 +80,10 @@ export const limits = sqliteTable('limits', {
   maxAssignments: integer('max_assignments').notNull(), maxReservedMs: integer('max_reserved_ms').notNull(), maxInflight: integer('max_inflight').notNull()
 });
 export const controls = sqliteTable('controls', { id: text('id').primaryKey(), stopped: integer('stopped').notNull().default(1), reason: text('reason').notNull(), updatedAt: integer('updated_at').notNull() });
+export const operationHealth = sqliteTable('operation_health', {
+  name:text('name').primaryKey(),runId:text('run_id').notNull(),lastStartedAt:integer('last_started_at').notNull(),
+  lastSuccessAt:integer('last_success_at'),lastFailureAt:integer('last_failure_at'),lastError:text('last_error')
+});
 export const audit = sqliteTable('audit', {
   id: text('id').primaryKey(), actorId: text('actor_id').references(() => user.id, { onDelete: 'set null' }), action: text('action').notNull(), objectId: text('object_id').notNull(), detail: text('detail').notNull(), createdAt: integer('created_at').notNull()
 });

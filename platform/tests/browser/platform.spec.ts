@@ -9,17 +9,17 @@ test('public pages, keyboard access, and mobile layout',async({page})=>{
   await page.setViewportSize({width:390,height:844});await page.goto('/contribute');
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.keyboard.press('Tab');await expect(page.getByRole('link',{name:'Skip to content'})).toBeFocused();
-  await expect(page.getByRole('button',{name:'Start contributing'})).toBeEnabled();
+  await expect(page.getByRole('button',{name:/^(Check for a task|Check saved work|Resume)$/})).toBeEnabled();
   expect(page.workers()).toHaveLength(0);
 });
 test('Start, Pause, Stop, and reload preserve bounded work without automatic execution',async({page})=>{
-  await page.goto('/contribute');await page.getByRole('button',{name:'Start contributing'}).click();
-  await expect(page.getByRole('status')).toHaveText('Computing one bounded work unit.',{timeout:30000});
+  await page.goto('/contribute');await page.getByRole('button',{name:/^(Check for a task|Check saved work|Resume)$/}).click();
+  await expect(page.getByRole('status')).toHaveText('Running one task. You can pause at any time and resume from the last saved checkpoint.',{timeout:30000});
   await expect.poll(()=>page.workers().length).toBe(1);
   await page.getByRole('button',{name:'Pause',exact:true}).click();await expect.poll(()=>page.workers().length).toBe(0);
   await expect(page.getByRole('status')).toContainText('Paused.');
-  await page.reload();expect(page.workers()).toHaveLength(0);await expect(page.getByRole('status')).toHaveText('Ready when you are.');
-  await page.getByRole('button',{name:'Start contributing'}).click();await expect.poll(()=>page.workers().length).toBe(1);
+  await page.reload();expect(page.workers()).toHaveLength(0);await expect(page.getByRole('status')).toHaveText('No task is running.');
+  await page.getByRole('button',{name:/^(Check for a task|Check saved work|Resume)$/}).click();await expect.poll(()=>page.workers().length).toBe(1);
   await page.getByRole('button',{name:'Stop',exact:true}).click();await expect.poll(()=>page.workers().length).toBe(0);await expect(page.getByRole('status')).toContainText('Stopped.');
 });
 test('browser verification reproduces native output',async({page},info)=>{
@@ -29,8 +29,8 @@ test('browser verification reproduces native output',async({page},info)=>{
     const job={...base,encoding,algorithm,iterations:257,symbol_count:encoding==='substitution'?23:46,ciphertext:base.ciphertext.map((c:number,i:number)=>c+(encoding!=='substitution'&&i%2?23:0))};
     const input=resolve(folder+'/job.json'),output=resolve(folder+'/result.json');await writeFile(input,JSON.stringify(job));
     const command=spawnSync(resolve('../kernel/target/release/vah-search'+(process.platform==='win32'?'.exe':'')),['run','--job',input,'--out',output]);expect(command.status).toBe(0);
-    await page.goto('/verify');await page.getByLabel('Scientific input (JSON)').setInputFiles(input);await page.getByLabel('Result record',{exact:true}).setInputFiles(output);
-    await page.getByRole('button',{name:'Verify and replay'}).click();await expect(page.getByRole('status')).toContainText('The replay matches the complete result.',{timeout:30000});
+    await page.goto('/verify');await page.getByLabel('Scientific input file (JSON)').setInputFiles(input);await page.getByLabel('Result record file (JSON)',{exact:true}).setInputFiles(output);
+    await page.getByRole('button',{name:'Replay and compare'}).click();await expect(page.getByRole('status')).toContainText('The replay matches the complete recorded result.',{timeout:30000});
   }
 });
 test('browser verification also reproduces generation and verification work',async({page},info)=>{
@@ -43,19 +43,19 @@ test('browser verification also reproduces generation and verification work',asy
   for(const input of inputs){
     const result=await native(input.version==='vah-generation-input-1'?{op:'generate',input}:{op:'verify',job:base,result:original});
     const jobFile=resolve(folder,'input.json'),resultFile=resolve(folder,'result.json');await writeFile(jobFile,JSON.stringify(input));await writeFile(resultFile,JSON.stringify(result));
-    await page.goto('/verify');await page.getByLabel('Scientific input (JSON)').setInputFiles(jobFile);await page.getByLabel('Result record',{exact:true}).setInputFiles(resultFile);
-    await page.getByRole('button',{name:'Verify and replay'}).click();await expect(page.getByRole('status')).toContainText('The replay matches the complete result.',{timeout:30000});
+    await page.goto('/verify');await page.getByLabel('Scientific input file (JSON)').setInputFiles(jobFile);await page.getByLabel('Result record file (JSON)',{exact:true}).setInputFiles(resultFile);
+    await page.getByRole('button',{name:'Replay and compare'}).click();await expect(page.getByRole('status')).toContainText('The replay matches the complete recorded result.',{timeout:30000});
   }
 });
 
 test('owner access fails closed, then a real signed session can use controls',async({page,context},info)=>{
   expect((await page.goto('/owner'))?.status()).toBe(403);
   const cookie=JSON.parse(await readFile('test-results/owner-cookie.json','utf8'));await context.addCookies([cookie]);
-  const response=await page.goto('/owner');await expect(page.getByRole('heading',{name:'Operate the project.'})).toBeVisible();
+  const response=await page.goto('/owner');await expect(page.getByRole('heading',{name:'Project operations'})).toBeVisible();
   const headers=await response!.allHeaders();expect(headers['cache-control']).toBe('no-store');
   if(info.project.name==='chromium')expect((headers['set-cookie']??'').includes(cookie.name+'=')).toBe(true);
-  await page.getByRole('button',{name:'Stop new assignments'}).click();await expect(page.getByText('Assignments paused.',{exact:false})).toBeVisible();
-  await page.getByRole('button',{name:'Allow assignments'}).click();await expect(page.getByText('Assignments enabled.',{exact:false})).toBeVisible();
+  await page.getByRole('button',{name:'Pause new assignments'}).click();await expect(page.getByText('Assignments are paused.',{exact:false})).toBeVisible();
+  await page.getByRole('button',{name:'Open assignments'}).click();await expect(page.getByText('Assignments are open.',{exact:false})).toBeVisible();
 });
 
 test('a lost submission acknowledgement survives offline mode and reload without duplicate credit',async({page,context,request})=>{
@@ -69,14 +69,14 @@ test('a lost submission acknowledgement survives offline mode and reload without
     else{expect((await control(true)).ok()).toBe(true);await route.fulfill({response});}
   });
   try{
-    await page.goto('/contribute');await page.getByRole('slider').focus();await page.getByRole('slider').press('End');await page.getByRole('button',{name:'Start contributing'}).click();
-    await expect(page.getByRole('alert')).toContainText('retained in this browser',{timeout:60000});
+    await page.goto('/contribute');await page.getByRole('slider').focus();await page.getByRole('slider').press('End');await page.getByRole('button',{name:/^(Check for a task|Check saved work|Resume)$/}).click();
+    await expect(page.getByRole('alert')).toContainText('remains saved in this browser',{timeout:60000});
     expect(page.workers()).toHaveLength(0);expect(submissions).toBe(1);
     const retained=await page.evaluate(()=>new Promise<any>((accept,reject)=>{const r=indexedDB.open('voynich-work-v1');r.onsuccess=()=>{const db=r.result,q=db.transaction('work').objectStore('work').get('current');q.onsuccess=()=>{accept({attempt:q.result?.lease.attempt_id,result:!!q.result?.result});db.close();};};r.onerror=()=>reject(r.error);}));
     expect(retained).toEqual({attempt,result:true});
     await context.setOffline(false);await page.reload();expect(page.workers()).toHaveLength(0);
-    await page.getByRole('button',{name:'Start contributing'}).click();
-    await expect(page.getByRole('status')).toContainText('No work is currently available.');expect(submissions).toBe(2);
+    await page.getByRole('button',{name:/^(Check for a task|Check saved work|Resume)$/}).click();
+    await expect(page.getByRole('status')).toContainText('New assignments are closed.');expect(submissions).toBe(2);
     await expect.poll(async()=>{const result=await page.request.get('/api/v1/me');return (await result.json()).contributions.credit;}).toBe(4096);
     const record=await request.get('/api/v1/records/'+encodeURIComponent(unit));expect((await record.json()).result).not.toBeNull();
   }finally{await context.setOffline(false);await control(false);}
@@ -84,8 +84,8 @@ test('a lost submission acknowledgement survives offline mode and reload without
 
 test('unsupported devices receive a clear message and cannot start a worker',async({page})=>{
   await page.addInitScript(()=>{Object.defineProperty(window,'WebAssembly',{value:undefined});});
-  await page.goto('/contribute');await expect(page.getByText('This browser needs WebAssembly', {exact:false})).toBeVisible();
-  await expect(page.getByRole('button',{name:'Start contributing'})).toBeDisabled();expect(page.workers()).toHaveLength(0);
+  await page.goto('/contribute');await expect(page.getByText('Browser participation requires WebAssembly', {exact:false})).toBeVisible();
+  await expect(page.getByRole('button',{name:/^(Check for a task|Check saved work|Resume)$/})).toBeDisabled();expect(page.workers()).toHaveLength(0);
 });
 
 test('the command-line volunteer uses native checkpoints and the same checked-credit contract',async({request},info)=>{
@@ -127,8 +127,8 @@ test('profiles, guest attachment, teams, session revocation, and deletion work t
   await page.getByLabel('Show my name, checked credit, and team membership publicly').check();await page.getByRole('button',{name:'Save profile'}).click();await expect(page.getByRole('status')).toHaveText('Profile saved.');
   await page.getByLabel('New team name').fill('Team '+info.project.name);await page.getByRole('button',{name:'Create team'}).click();await expect(page.getByRole('status')).toHaveText('Team created.');
   await page.getByRole('button',{name:'Leave team',exact:true}).click();await expect(page.getByRole('status')).toHaveText('You left the team.');
-  await page.getByRole('button',{name:'Revoke other sessions'}).click();await expect(page.getByRole('status')).toHaveText('Other sessions revoked.');
-  await expect(page.getByRole('button',{name:'Revoke',exact:true})).toHaveCount(1);
+  await page.getByRole('button',{name:'Sign out other devices'}).click();await expect(page.getByRole('status')).toHaveText('Other devices have been signed out.');
+  await expect(page.getByRole('button',{name:'Sign out session',exact:true})).toHaveCount(1);
   await page.getByLabel('I want to permanently delete my account.').check();await page.getByRole('button',{name:'Delete my account',exact:true}).click();await expect(page).toHaveURL('http://127.0.0.1:8899/');
   community=await (await page.request.get('/api/v1/community')).json();expect(community.people.some((p:any)=>p.display_name==='Participant '+info.project.name)).toBe(false);expect(community.teams.some((t:any)=>t.name==='Team '+info.project.name)).toBe(false);
   expect((await (await page.request.get('/api/v1/me')).json()).guest).toBe(false);

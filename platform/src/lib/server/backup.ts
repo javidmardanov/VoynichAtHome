@@ -2,14 +2,18 @@ import { ApiError, now } from './coordinator';
 import { identity, sha256, Digest, StoredInput } from '../contracts';
 import { z } from 'zod';
 import {loadInput,sharedKey} from './inputs';
+import {recordOperation} from './health';
 // Foreign-key order. A backup never accepts table or column names from a caller.
-const tables=['user','account','session','verification','rate_limit','guests','profiles','teams','membership','campaigns','releases','reports','shared_objects','units','attempts','credit','limits','controls','audit'] as const;
+const tables=['user','account','session','verification','rate_limit','guests','profiles','teams','membership','campaigns','releases','reports','shared_objects','units','attempts','credit','limits','controls','operation_health','audit'] as const;
 const Snapshot=z.object({version:z.literal('vah-backup-1'),created_at:z.number().int(),schema:z.record(z.string(),z.array(z.string())),tables:z.record(z.string(),z.array(z.record(z.string(),z.union([z.string(),z.number(),z.null()]))))}).strict();
 const PortableKey=z.string().regex(/^(inputs\/[0-9a-f]{64}\.json|shared\/[0-9a-f]{64}\.json|deletions\/[a-zA-Z0-9_-]+\.json|backups\/\d{4}-\d{2}-\d{2}-[0-9a-f]{64}\.json)$/);
 export const PortableBackup=z.object({version:z.literal('vah-portable-backup-1'),created_at:z.number().int(),database_key:PortableKey,
   objects:z.array(z.object({key:PortableKey,digest:Digest,size:z.number().int().min(1).max(16000000)}).strict()).min(1).max(10000)}).strict();
 async function columns(env:Env){const result:Record<string,string[]>={};for(const table of tables){const info=await env.DB.prepare(`PRAGMA table_info("${table}")`).all<{name:string}>();result[table]=info.results.map(c=>c.name);}return result;}
 export async function backup(env:Env){
+  return recordOperation(env,'backup',()=>writeBackup(env));
+}
+async function writeBackup(env:Env){
   const schema=await columns(env);
   const counts=await env.DB.batch<{n:number}>(tables.map(table=>env.DB.prepare(`SELECT COUNT(*) n FROM "${table}"`)));
   if(counts.reduce((n,r)=>n+Number(r.results[0]?.n??0),0)>50000)throw new ApiError(409,'Use the provider export for this larger database.');
@@ -62,7 +66,8 @@ export async function restore(env:Env,key:string){
     cursor=page.truncated?page.cursor:undefined;
   }while(cursor);
   statements.push(env.DB.prepare('DELETE FROM session'),env.DB.prepare('DELETE FROM verification'),env.DB.prepare('UPDATE guests SET token_hash=NULL'),
-    env.DB.prepare("UPDATE attempts SET expires_at=0 WHERE state='leased'"),env.DB.prepare("UPDATE controls SET stopped=1,reason='Backup restored; operator review required.'"));
+    env.DB.prepare("UPDATE attempts SET expires_at=0 WHERE state='leased'"),env.DB.prepare("UPDATE controls SET stopped=1,reason='Backup restored; operator review required.'"),
+    env.DB.prepare('DELETE FROM operation_health'));
   if(statements.length>400)throw new ApiError(409,'Use the provider restoration procedure for this larger backup.');
   await env.DB.batch(statements);return {restored:true,key,sessions_revoked:true,assignments_paused:true};
 }
@@ -121,13 +126,23 @@ export async function importBackupObject(env:Env,payload:unknown){
   return {imported:true,duplicate:!stored};
 }
 export async function dailyBackup(env:Env){
+  return recordOperation(env,'backup',()=>maintainBackups(env));
+}
+async function maintainBackups(env:Env){
   await env.DB.batch([
     env.DB.prepare("DELETE FROM rate_limit WHERE (key LIKE 'app:%' AND last_request<?) OR (key NOT LIKE 'app:%' AND last_request<?)").bind(now()-86400,Date.now()-86400000),
     env.DB.prepare('DELETE FROM session WHERE expires_at<?').bind(Date.now()),env.DB.prepare('DELETE FROM verification WHERE expires_at<?').bind(Date.now()),
     env.DB.prepare('UPDATE guests SET token_hash=NULL WHERE expires_at<? AND token_hash IS NOT NULL').bind(now())
   ]);
   const prefix='backups/'+new Date().toISOString().slice(0,10);
-  if(!(await env.RESEARCH.list({prefix,limit:1})).objects.length)await backup(env);
+  const existing=(await env.RESEARCH.list({prefix,limit:1})).objects[0];
+  if(!existing)await writeBackup(env);
+  else{
+    const object=await env.RESEARCH.get(existing.key);
+    if(!object||object.size>16000000)throw new ApiError(503,'Today’s backup is missing or exceeds its verified bound.');
+    const snapshot=Snapshot.parse(JSON.parse(await object.text()));
+    if(await identity(snapshot)!==object.customMetadata?.digest)throw new ApiError(503,'Today’s backup failed integrity verification.');
+  }
   // Explicit 30-day retention. Deletion tombstones are kept separately.
   let cursor:string|undefined;
   do{const page=await env.RESEARCH.list({prefix:'backups/',limit:100,cursor});

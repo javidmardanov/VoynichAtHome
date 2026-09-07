@@ -13,6 +13,7 @@ import { instantiateKernel } from '../src/lib/wasm';
 import kernelRelease from '../src/lib/generated/kernel.json';
 import {trustedRun} from '../src/lib/server/runner';
 import {loadInput} from '../src/lib/server/inputs';
+import {recordOperation,operationalHealth,MAINTENANCE_MAX_AGE_SECONDS} from '../src/lib/server/health';
 
 let mf: Miniflare, env: Env;
 const output={version:'test-result',score:123};
@@ -29,6 +30,7 @@ beforeEach(async()=>{
     env.DB.prepare("INSERT INTO releases VALUES ('test','sha256:test','/kernels/test.wasm','approved','{}',?)").bind(now()),
     env.DB.prepare("INSERT INTO campaigns VALUES ('test','Test campaign','Can we reproduce this?',?,'{}','active','computation',?,?)").bind('sha256:campaign',now(),now())
   ]);
+  await recordOperation(env,'scheduled-maintenance',async()=>{}); // Explicit simulated scheduler evidence in this isolated fixture.
 });
 afterEach(async()=>{await mf?.dispose();});
 async function addUnits(n:number) {
@@ -45,6 +47,46 @@ async function work(g:Awaited<ReturnType<typeof guest>>) {
   return w as {state:'work';attempt_id:string;unit_id:string};
 }
 const body=(w:{attempt_id:string;unit_id:string},result=output)=>({version:'vah-submission-1',attempt_id:w.attempt_id,unit_id:w.unit_id,result});
+
+test('overdue or failed scheduling closes leases but retains submissions and the manual stop',async()=>{
+  await addUnits(2);const person=await guest(),assigned=await work(person);
+  await env.DB.prepare("UPDATE operation_health SET last_success_at=? WHERE name='scheduled-maintenance'").bind(now()-MAINTENANCE_MAX_AGE_SECONDS-1).run();
+  expect((await operationalHealth(env)).maintenance.healthy).toBe(false);
+  expect((await lease(env,await guest())).state).toBe('idle');
+  await submit(env,person,body(assigned));await validateUnit(env,assigned.unit_id,async()=>output);
+  expect((await contributions(env.DB,person,null)).credit).toBe(7);
+  await expect(recordOperation(env,'scheduled-maintenance',async()=>{throw Error('Fixture scheduled failure');})).rejects.toThrow('Fixture scheduled failure');
+  expect((await operationalHealth(env)).maintenance.error).toBe('Fixture scheduled failure');
+  await env.DB.prepare("UPDATE controls SET stopped=1 WHERE id='main'").run();
+  await recordOperation(env,'scheduled-maintenance',async()=>{});
+  expect((await operationalHealth(env)).maintenance.healthy).toBe(true);
+  expect((await lease(env,await guest())).state).toBe('idle');
+  await env.DB.prepare("UPDATE controls SET stopped=0 WHERE id='main'").run();
+  expect((await lease(env,await guest())).state).toBe('work');
+});
+
+test('an older successful invocation cannot hide a later scheduler failure',async()=>{
+  let finish!:()=>void;
+  const gate=new Promise<void>(resolve=>finish=resolve);
+  let began!:()=>void;const started=new Promise<void>(resolve=>began=resolve);
+  const earlier=recordOperation(env,'scheduled-maintenance',async()=>{began();await gate;});await started;
+  await expect(recordOperation(env,'scheduled-maintenance',async()=>{throw Error('New invocation failed');})).rejects.toThrow();
+  finish();await earlier;
+  const health=await operationalHealth(env);
+  expect(health.maintenance.healthy).toBe(false);expect(health.maintenance.error).toBe('New invocation failed');
+});
+
+test('restoration invalidates scheduler evidence and backup integrity failures remain visible',async()=>{
+  const saved=await backup(env);expect((await operationalHealth(env)).backup.last_success_at).not.toBeNull();
+  env.DEPLOYMENT_STAGE='staging';env.ASSIGNMENTS_ENABLED='false';
+  await env.DB.prepare("UPDATE controls SET stopped=1 WHERE id='main'").run();
+  await restore(env,saved.key);
+  expect((await operationalHealth(env)).maintenance.healthy).toBe(false);
+  const {dailyBackup}=await import('../src/lib/server/backup');
+  await env.RESEARCH.put(saved.key,JSON.stringify({version:'corrupt'}));
+  await expect(dailyBackup(env)).rejects.toThrow();
+  expect((await operationalHealth(env)).backup.last_failure_at).not.toBeNull();
+});
 
 test('generation and verification use duplicate submissions, trusted replay and fixed credit',async()=>{
   env.SEARCH_KERNEL=await WebAssembly.compile(await readFile('src/lib/generated/search.wasm'));

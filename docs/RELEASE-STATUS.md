@@ -2,6 +2,8 @@
 
 Status: development, with an owner-only [hosted preview](https://voynich-at-home.jenobi.chatgpt.site). Assignments are disabled. No public research release or production readiness is claimed.
 
+On 7 September the owner deferred website work. Deployment, OAuth setup, hosted rehearsal, and public campaign launch are paused. The frozen local study and reproducibility tooling continue; see the [completion ledger](COMPLETION.md). Existing local browser and platform repairs have been checked, without changing the hosted preview.
+
 | Stage | Implemented and checked | Still required |
 |---|---|---|
 | Consolidate and correct | Both branch histories preserved; one current design; acceptance-rule corrections; explicit metrics; source and rights registry; original native/WASM golden fixtures; Python compatibility and recovery checks | Continued review as the research develops |
@@ -16,9 +18,13 @@ The [development archive](../research/recovery/results/development-2026-09-05/RE
 
 Every original result was replayed exactly on the same native host, including its trace. The audit preserves one operational timeout and its later exact retry. This was project-run reproduction, not independent review.
 
-Evaluation settings were published in commit `5c1ec449f218f876d6160f99e0e9d62737d6e121` before fetching evaluation works. Preparation produced 1,800 message-and-key cases and 5,400 comparison inputs with zero preparation failures. The first 100-case condition (Latin, 1,000 characters, ordinary substitution) is running locally on one native worker, limited to 19,500 searches including controls. The complete program would contain 351,000 searches. Answers remain outside worker inputs and outside the repository. Full evaluation is pending.
+Evaluation settings were published in commit `5c1ec449f218f876d6160f99e0e9d62737d6e121` before fetching evaluation works. Preparation produced 1,800 message-and-key cases and 5,400 comparison inputs with zero preparation failures. A verified private backup on 7 September preserved the original 19,499 successful executions and one allocation failure. The remaining 331,500 searches then resumed sequentially with the same executable, inputs, seeds, budgets, and timeout. A separate supplemental retry succeeded; it did not replace the original failure. Answers remain outside worker inputs and outside the repository. Full evaluation and replay remain in progress.
 
 ## Completed software evidence
+
+Local Windows verification on 7 September passed the pinned Rust workspace tests and native release build, 32 Python tests, 31 platform tests, source/type checks, CLI/Worker packaging, all 26 browser cases across Chromium/Firefox/WebKit (four duplicate CLI cases skipped), and the 25-computing-plus-five-waiting load test. All 25 computing clients obtained checked credit. The streamed report reproduced all 324 published development condition summaries exactly. These are local checks of the new changes; they do not establish hosted operation or independent reproduction. Revision-specific CI is recorded separately when it finishes.
+
+The new additive `operation_health` migration records scheduled-maintenance and backup outcomes. New leases require a successful schedule within 20 minutes; outstanding valid submissions remain accepted. Restoration clears previous health and leaves assignments stopped. The local server explicitly invokes the actual scheduled handler in Miniflare; no provider trigger has been provisioned by this change.
 
 CI passed for `07640a7ef01b7812b6e3a54cc4efe7af045ba096`: [kernel](https://github.com/javidmardanov/VoynichAtHome/actions/runs/33975940562), [platform/search](https://github.com/javidmardanov/VoynichAtHome/actions/runs/33975940560), and [Python contracts](https://github.com/javidmardanov/VoynichAtHome/actions/runs/33975940561). Later changes require their own CI; those links do not certify an untested revision.
 
@@ -40,4 +46,4 @@ That is an empty-preview rollout rehearsal. It is not proof of safe rollback dur
 
 The initial checking reserve is deliberately conservative: 30,000 ms per trusted replay and a 1,000,000 ms monthly allocation allow at most 33 first replay reservations before funded retries. The input reserve is 128 MB, and traffic reserve stops new assignment before the finishing allowance is consumed. Larger campaigns require measured hosted cost and an owner-approved allocation. These counters are not a provider-enforced spending cap. No paid setup has been performed.
 
-The next dependencies are actual OAuth applications and the owner's signed-in account, provider access to verify scheduled maintenance, and approved spend if required. Hosted checks must operate independently of the owner's computer. Once configured, perform the deployed operating rehearsals, record their evidence, and present the tagged public release to the human owner.
+When the owner resumes website work, the dependencies are actual OAuth applications and the owner's signed-in account, provider access to verify scheduled maintenance, and approved spend if required. Hosted checks must operate independently of the owner's computer. Those gates remain deferred; the local study does not depend on completing them.

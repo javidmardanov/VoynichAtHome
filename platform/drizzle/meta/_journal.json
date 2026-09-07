@@ -43,6 +43,13 @@
       "when": 1788617124085,
       "tag": "0005_stormy_sumo",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1788769306746,
+      "tag": "0006_volatile_hiroim",
+      "breakpoints": true
     }
   ]
 }

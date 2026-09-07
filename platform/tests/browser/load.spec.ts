@@ -16,7 +16,7 @@ test('25 simultaneous computing clients finish checked work while five extra cli
     const submitted=pages.map(page=>page.waitForResponse(r=>new URL(r.url()).pathname==='/api/v1/results'&&r.status()===202,{timeout:200000}).then(async()=>{await page.getByRole('button',{name:'Stop',exact:true}).click();return page;}));
     // Waiting clients never submit; only consume the promises for assigned clients.
     for(const p of submitted)void p.catch(()=>{});
-    await Promise.all(pages.map(p=>p.getByRole('button',{name:'Start contributing'}).click()));
+    await Promise.all(pages.map(p=>p.getByRole('button',{name:/^(Check for a task|Check saved work|Resume)$/}).click()));
     await expect.poll(()=>inputRequests).toBe(25);
     await expect.poll(async()=>(await Promise.all(pages.map(p=>p.getByRole('status').innerText()))).filter(t=>t.includes('waiting for capacity')).length).toBe(5);
     const waiting:number[]=[];for(let i=0;i<pages.length;i++)if((await pages[i].getByRole('status').innerText()).includes('waiting for capacity'))waiting.push(i);

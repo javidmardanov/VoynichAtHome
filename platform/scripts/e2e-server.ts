@@ -46,6 +46,9 @@ try{
     await writeFile('test-results/profile-cookie-'+engine+'.json',JSON.stringify({name:signed.slice(0,split),value:signed.slice(split+1),url:origin,httpOnly:true,sameSite:'Lax'}));
   }
   console.log('Ephemeral browser rehearsal ready at '+origin);
+  const worker=await mf.getWorker();
+  await worker.scheduled({cron:'*/5 * * * *'});
+  const scheduling=setInterval(()=>{void worker.scheduled({cron:'*/5 * * * *'}).catch(error=>console.error('Local scheduled invocation failed',error));},5*60000);
   ready=true;
-  await new Promise<void>(resolve=>{process.once('SIGINT',resolve);process.once('SIGTERM',resolve);});
+  try{await new Promise<void>(resolve=>{process.once('SIGINT',resolve);process.once('SIGTERM',resolve);});}finally{clearInterval(scheduling);}
 }finally{await mf.dispose();}

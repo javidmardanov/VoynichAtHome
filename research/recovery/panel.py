@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from itertools import groupby
 import hashlib
 import json
 import os
@@ -80,6 +81,17 @@ def save(path, value):
 
 def kernel_path():
     return ROOT / 'kernel/target/release' / ('vah-search.exe' if os.name == 'nt' else 'vah-search')
+
+
+def selected_binary(args):
+    return (getattr(args, 'binary', None) or kernel_path()).resolve()
+
+
+def wait_for_memory(args):
+    minimum = getattr(args, 'min_free_memory_mib', 0) * 1024 * 1024
+    while minimum and psutil.virtual_memory().available < minimum:
+        print(json.dumps({'state': 'waiting-for-memory', 'minimum_free_mib': minimum // 1024 // 1024}), flush=True)
+        time.sleep(30)
 
 
 def validate_spec(spec):
@@ -262,7 +274,8 @@ def execute(job, binary, directory, timeout, model_bytes=None):
     with (directory / 'stderr.txt').open('wb') as errors:
         process = subprocess.Popen([str(binary), 'run', '--job', str(directory / 'job.json'),
                                     '--out', str(result_path)], cwd=directory, stdin=subprocess.DEVNULL,
-                                   stdout=subprocess.DEVNULL, stderr=errors)
+                                   stdout=subprocess.DEVNULL, stderr=errors,
+                                   creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
         monitor = psutil.Process(process.pid)
         timed_out = False
         try:
@@ -298,7 +311,7 @@ def execute(job, binary, directory, timeout, model_bytes=None):
 def run_panel(args):
     worker = args.worker.resolve()
     manifest = load(worker / 'manifest.json')
-    binary = kernel_path()
+    binary = selected_binary(args)
     if manifest['kernel_digest'] != file_digest(binary):
         raise ValueError('Recorded native executable differs; preserve the panel toolchain')
     lock = worker / '.running'
@@ -316,6 +329,7 @@ def run_panel(args):
                     if existing['job_digest'] != job_digest(job, model_bytes):
                         raise ValueError('Saved run differs; refusing to overwrite it')
                     continue
+                wait_for_memory(args)
                 record = execute(job, binary, Path(directory), manifest['spec']['timeout_seconds'], model_bytes)
                 record.update({'case': row, 'algorithm': job['algorithm'], 'start': job['start'],
                                'host': {'os': platform.platform(), 'python': platform.python_version(), 'psutil': psutil.__version__},
@@ -330,122 +344,260 @@ def run_panel(args):
         lock.unlink()
 
 
+def retry_panel(args):
+    """One supplemental attempt per original operational failure; originals stay intact."""
+    worker, output = args.worker.resolve(), args.out.resolve()
+    if output == worker or worker in output.parents or output in worker.parents:
+        raise ValueError('Store operational retries separately from the original study')
+    manifest, binary = load(worker / 'manifest.json'), selected_binary(args)
+    if file_digest(binary) != manifest['kernel_digest']:
+        raise ValueError('Recorded native executable differs; preserve the panel toolchain')
+    output.mkdir(parents=True, exist_ok=True)
+    lock = worker / '.running'
+    with lock.open('x') as file:
+        file.write(str(os.getpid()))
+    records, model, model_bytes, count = [], None, None, 0
+    try:
+        with tempfile.TemporaryDirectory(dir=output) as directory:
+            for row, job, path in jobs(worker, manifest):
+                if not path.exists():
+                    continue
+                original = load(path)
+                if original['status'] == 'complete':
+                    continue
+                if original['status'] not in ('timeout', 'execution_error'):
+                    raise ValueError('Only recorded operational failures can be retried')
+                if job['model'] is not model:
+                    model, model_bytes = job['model'], rfc8785.dumps(job['model'])
+                if original['job_digest'] != job_digest(job, model_bytes):
+                    raise ValueError('Original job identity differs')
+                target = output / path.name
+                if target.exists():
+                    retry = load(target)
+                    if retry['original_record_digest'] != digest(original) or retry['kernel_digest'] != manifest['kernel_digest']:
+                        raise ValueError('Supplemental attempt belongs to different original evidence')
+                else:
+                    wait_for_memory(args)
+                    retry = {'version': 'vah-operational-retry-1', 'original_run': path.name,
+                             'original_record_digest': digest(original), 'kernel_digest': manifest['kernel_digest'],
+                             'attempt': 1, 'execution': execute(job, binary, Path(directory), manifest['spec']['timeout_seconds'], model_bytes),
+                             'interpretation': 'Supplemental operational retry; excluded from the original evaluation results.'}
+                    save(target, retry)
+                    count += 1
+                records.append({'run': path.name, 'original_record_digest': retry['original_record_digest'], 'status': retry['execution']['status']})
+                print(json.dumps(records[-1]), flush=True)
+                if args.limit and count >= args.limit:
+                    break
+        save(output / 'retry-report.json', {'version': 'vah-operational-retry-report-1',
+             'worker_manifest_digest': digest(manifest), 'records': records,
+             'primary_results_unchanged': True, 'interpretation': 'Supplemental outcomes only; never substitute these for original attempts.'})
+    finally:
+        lock.unlink()
+
+
 def evaluate_panel(args):
     worker = args.worker.resolve()
     manifest = load(worker / 'manifest.json')
     answers = load(args.custodian / 'answers.json')
     if digest(answers) != manifest['answers_commitment']:
         raise ValueError('Original answer commitment differs')
-    all_records = {}
+    summaries, operational_failures = [], []
+    ledger = hashlib.sha256()
+    recorded = successful = 0
     model, model_bytes = None, None
-    for row, job, path in jobs(worker, manifest):
-        if job['model'] is not model:
-            model, model_bytes = job['model'], rfc8785.dumps(job['model'])
-        key = (row['id'], row['control'], job['algorithm'])
-        if path.exists():
+    # At most one case/algorithm's 64 outputs are retained. The full evaluation
+    # has 351,000 records; retaining all plaintexts can exhaust a desktop host.
+    grouped = groupby(jobs(worker, manifest), key=lambda item: (item[0]['id'], item[0]['control'], item[1]['algorithm']))
+    for (_, _, algorithm), group in grouped:
+        records = []
+        for row, job, path in group:
+            if job['model'] is not model:
+                model, model_bytes = job['model'], rfc8785.dumps(job['model'])
+            if not path.exists():
+                continue
             record = load(path)
-            if record['job_digest'] != job_digest(job, model_bytes):
-                raise ValueError('Run identity differs')
+            ledger.update(rfc8785.dumps([path.name, file_digest(path)]) + b'\n')
+            if record['job_digest'] != job_digest(job, model_bytes) or record['algorithm'] != algorithm or record['start'] != job['start'] or record['case'] != row:
+                raise ValueError('Run identity or selection metadata differs')
+            if record['status'] not in ('complete', 'timeout', 'execution_error'):
+                raise ValueError('Unknown execution status')
+            recorded += 1
             if record['status'] == 'complete':
                 validate_result(job, record['result'], model_bytes)
-            all_records.setdefault(key, []).append(record)
-    summaries = []
-    for row in manifest['cases']:
+                successful += 1
+            else:
+                operational_failures.append({'run': path.name, 'job_digest': record['job_digest'],
+                    'status': record['status'], 'exit_code': record['exit_code'], 'error': record.get('error')})
+            records.append(record)
         plain = answers['cases'][row['id']]['plaintext']
-        for algorithm in ['beam-v1', 'restart-anneal-v1']:
-            records = all_records.get((row['id'], row['control'], algorithm), [])
-            for starts in manifest['spec']['starts']:
-                selected = [r for r in records if r['start'] < (1 if algorithm == 'beam-v1' else starts)]
-                complete = [r for r in selected if r['status'] == 'complete']
-                best = max(complete, key=lambda r: (r['result']['score'], -r['start']), default=None)
-                valid_readings = {r['result']['plaintext'] for r in complete}
-                summary = {**{k: row[k] for k in ('id', 'language', 'length', 'family', 'control')},
-                           'algorithm': algorithm, 'budget_starts': starts, 'executed_starts': len(selected),
-                           'complete_starts': len(complete), 'expected_starts': 1 if algorithm == 'beam-v1' else starts,
-                           'elapsed_ms': sum(r['elapsed_ms'] for r in selected),
-                           'actual_evaluations': sum(r['result']['evaluations'] for r in complete),
-                           'peak_sampled_rss_bytes': max((r['peak_sampled_rss_bytes'] or 0 for r in selected), default=0),
-                           'distinct_valid_decoder_outputs': len(valid_readings),
-                           'tied_best_outputs': len({r['result']['plaintext'] for r in complete if best and r['result']['score'] == best['result']['score']}),
-                           'note': 'Beam is deterministic and executes once; additional starts have no defined meaning.' if algorithm == 'beam-v1' else None,
-                           'score': best['result']['score'] if best else None,
-                           'result_digest': best['result']['result_digest'] if best else None}
-                summary['character_recovery'] = (sum(a == b for a, b in zip(plain, best['result']['plaintext'])) / len(plain)
-                    if best and row['control'] == 'message' else None)
-                summary['exact_recovery'] = best['result']['plaintext'] == plain if best and row['control'] == 'message' else None
-                summaries.append(summary)
+        for starts in manifest['spec']['starts']:
+            selected = [r for r in records if r['start'] < (1 if algorithm == 'beam-v1' else starts)]
+            complete = [r for r in selected if r['status'] == 'complete']
+            best = max(complete, key=lambda r: (r['result']['score'], -r['start']), default=None)
+            valid_readings = {r['result']['plaintext'] for r in complete}
+            summary = {**{k: row[k] for k in ('id', 'language', 'length', 'family', 'control')},
+                       'algorithm': algorithm, 'budget_starts': starts, 'executed_starts': len(selected),
+                       'complete_starts': len(complete), 'expected_starts': 1 if algorithm == 'beam-v1' else starts,
+                       'elapsed_ms': sum(r['elapsed_ms'] for r in selected),
+                       'actual_evaluations': sum(r['result']['evaluations'] for r in complete),
+                       'peak_sampled_rss_bytes': max((r['peak_sampled_rss_bytes'] or 0 for r in selected), default=0),
+                       'distinct_valid_decoder_outputs': len(valid_readings),
+                       'tied_best_outputs': len({r['result']['plaintext'] for r in complete if best and r['result']['score'] == best['result']['score']}),
+                       'note': 'Beam is deterministic and executes once; additional starts have no defined meaning.' if algorithm == 'beam-v1' else None,
+                       'score': best['result']['score'] if best else None,
+                       'result_digest': best['result']['result_digest'] if best else None}
+            summary['character_recovery'] = (sum(a == b for a, b in zip(plain, best['result']['plaintext'])) / len(plain)
+                if best and row['control'] == 'message' else None)
+            summary['exact_recovery'] = best['result']['plaintext'] == plain if best and row['control'] == 'message' else None
+            summaries.append(summary)
     # Matched controls use the same number of starts and fixed per-start budget.
+    comparison_index = {(r['id'], r['control'], r['algorithm'], r['budget_starts']): r for r in summaries}
     for row in summaries:
         if row['control'] != 'message' or row['score'] is None:
             continue
-        controls = [c for c in summaries if c['id'] == row['id'] and c['control'] != 'message'
-                    and c['algorithm'] == row['algorithm'] and c['budget_starts'] == row['budget_starts']]
+        controls = [comparison_index[(row['id'], control, row['algorithm'], row['budget_starts'])]
+                    for control in manifest['spec']['controls'] if control != 'message']
         row['controls_scoring_at_least_as_high'] = sum(c['score'] is not None and c['score'] >= row['score'] for c in controls)
-    report = {'version': 'vah-recovery-report-1', 'spec': manifest['spec'], 'spec_digest': manifest['spec_digest'],
+    expected = len(manifest['cases']) * (1 + max(manifest['spec']['starts']))
+    report = {'version': 'vah-recovery-report-2', 'spec': manifest['spec'], 'spec_digest': manifest['spec_digest'],
               'answers_commitment': manifest['answers_commitment'], 'kernel_digest': manifest['kernel_digest'],
+              'worker_manifest_digest': digest(manifest),
+              'original_records_digest': 'sha256:' + ledger.hexdigest(),
               'administration': 'Project-controlled; concealed from worker inputs, not independently administered.',
               'interpretation': 'Development observations only.' if manifest['spec']['split'] == 'development' else 'Frozen-condition evaluation; generalization is limited to the registered works and encodings.',
               'sampling': 'Random contiguous passages within separate source works. Cases can overlap and do not represent 100 independent source works.',
-              'preparation_failures': manifest['preparation_failures'], 'conditions': summaries}
+              'preparation_failures': manifest['preparation_failures'], 'conditions': summaries,
+              'coverage': {'expected_searches': expected, 'recorded_searches': recorded,
+                           'successful_executions': successful, 'operational_failures': len(operational_failures),
+                           'unrecorded_searches': expected - recorded},
+              'operational_failures': operational_failures,
+              'retry_policy': 'Original attempts determine the primary report. Supplemental operational retries never replace them.'}
     report['complete'] = bool(summaries) and all(r['executed_starts'] == r['expected_starts'] for r in summaries)
     report['all_searches_succeeded_operationally'] = not manifest['preparation_failures'] and all(r['complete_starts'] == r['expected_starts'] for r in summaries)
     save(args.out, report)
     print(json.dumps({'complete': report['complete'], 'rows': len(summaries), 'report': str(args.out)}))
 
 
+def replay_one(args, job, expected, name, output, directory, manifest, binary, replay_kernel, model_bytes):
+    """Retain every failed replay; only missing scientific outputs can be retried."""
+    path = Path(name)
+    audit_path = output / name
+    retries = sorted((output / 'retries').glob(path.stem + '-*.json'))
+    if retries:
+        audit_path = retries[-1]
+    audit = None
+    if audit_path.exists():
+        audit = load(audit_path)
+        if (audit['kernel_digest'] != replay_kernel or audit['expected_digest'] != digest(expected['result'])
+                or audit['job_digest'] != expected['job_digest'] or audit['run'] != name):
+            raise ValueError('Replay audit belongs to different inputs or executable')
+        if audit['status'] == 'exact-replay' and audit['actual_digest'] != audit['expected_digest']:
+            raise ValueError('Exact replay audit has inconsistent output digests')
+        if audit['status'] == 'replay-operational-failure' and audit['actual_digest'] is None and args.retry_operational:
+            audit_path = output / 'retries' / (path.stem + f'-{len(retries)+1:04}.json')
+            audit = None
+    executed = audit is None
+    if executed:
+        wait_for_memory(args)
+        actual = execute(job, binary, Path(directory), manifest['spec']['timeout_seconds'], model_bytes)
+        audit = {'run': name, 'job_digest': expected['job_digest'], 'kernel_digest': replay_kernel,
+                 'expected_digest': digest(expected['result']),
+                 'actual_digest': digest(actual['result']) if actual['status'] == 'complete' else None,
+                 'status': 'replay-operational-failure' if actual['status'] != 'complete' else 'exact-replay' if actual['result'] == expected['result'] else 'scientific-output-mismatch',
+                 'execution_status': actual['status'], 'exit_code': actual['exit_code'], 'error': actual.get('error'),
+                 'elapsed_ms': actual['elapsed_ms'], 'peak_sampled_rss_bytes': actual['peak_sampled_rss_bytes']}
+        if audit['status'] == 'scientific-output-mismatch':
+            audit['actual_result'] = actual['result']
+        save(audit_path, audit)
+        print(json.dumps({'replay': name, 'status': audit['status'], 'audit': str(audit_path)}), flush=True)
+    return audit, executed
+
+
 def replay_panel(args):
     """Rebuild on any supported host and compare complete outputs, without answers."""
     worker, output = args.worker.resolve(), args.out.resolve()
-    if output == worker or worker in output.parents:
+    if output == worker or worker in output.parents or output in worker.parents:
         raise ValueError('Store replay audits outside the immutable worker inputs')
+    supplemental = getattr(args, 'supplemental_retries', None)
+    if supplemental:
+        supplemental = supplemental.resolve()
+        if supplemental == output or output in supplemental.parents or supplemental in output.parents:
+            raise ValueError('Keep supplemental attempts separate from replay audits')
+    if (worker / '.running').exists():
+        raise ValueError('Finish the original runner before replaying the study')
     output.mkdir(parents=True, exist_ok=True)
-    manifest, binary = load(worker / 'manifest.json'), kernel_path()
+    manifest, binary = load(worker / 'manifest.json'), selected_binary(args)
     replay_kernel = file_digest(binary)
-    model, model_bytes, count, records = None, None, 0, []
-    with tempfile.TemporaryDirectory(dir=output) as directory:
-        for row, job, path in jobs(worker, manifest):
-            if job['model'] is not model:
-                model, model_bytes = job['model'], rfc8785.dumps(job['model'])
-            expected = load(path)
-            if expected['job_digest'] != job_digest(job, model_bytes):
-                raise ValueError('Recorded job identity differs')
-            if expected['status'] != 'complete':
-                records.append({'run': path.name, 'status': 'original-operational-failure'})
-                continue
-            audit_path = output / path.name
-            retries = sorted((output / 'retries').glob(path.stem + '-*.json'))
-            if retries:
-                audit_path = retries[-1]
-            audit = None
-            if audit_path.exists():
-                audit = load(audit_path)
-                if audit['kernel_digest'] != replay_kernel or audit['expected_digest'] != digest(expected['result']):
-                    raise ValueError('Replay audit belongs to different inputs or executable')
-                if audit['status'] != 'exact-replay' and audit['actual_digest'] is None and args.retry_operational:
-                    (output / 'retries').mkdir(exist_ok=True)
-                    audit_path = output / 'retries' / (path.stem + f'-{len(retries)+1:04}.json')
-                    audit = None
-            if audit is None:
-                actual = execute(job, binary, Path(directory), manifest['spec']['timeout_seconds'], model_bytes)
-                audit = {'run': path.name, 'job_digest': expected['job_digest'], 'kernel_digest': replay_kernel,
-                         'expected_digest': digest(expected['result']),
-                         'actual_digest': digest(actual['result']) if actual['status'] == 'complete' else None,
-                         'status': 'replay-operational-failure' if actual['status'] != 'complete' else 'exact-replay' if actual['result'] == expected['result'] else 'scientific-output-mismatch',
-                         'execution_status': actual['status'], 'exit_code': actual['exit_code'], 'error': actual.get('error'),
-                         'elapsed_ms': actual['elapsed_ms'], 'peak_sampled_rss_bytes': actual['peak_sampled_rss_bytes']}
-                save(audit_path, audit)
-                count += 1
-            records.append(audit)
-            if audit['status'] != 'exact-replay':
-                raise ValueError('Replay differs: ' + path.name)
-            if args.limit and count >= args.limit:
-                break
     expected_count = len(manifest['cases']) * (1 + max(manifest['spec']['starts']))
-    report = {'version': 'vah-panel-replay-1', 'original_kernel_digest': manifest['kernel_digest'],
-              'replay_kernel_digest': replay_kernel, 'expected_runs': expected_count, 'records': records,
-              'complete': len(records) == expected_count and all(r['status'] == 'exact-replay' for r in records),
-              'interpretation': 'Exact scientific outputs, including traces; no original messages or keys are read by replay.'}
-    save(output / 'replay-report.json', report)
+    lock = output / '.running'
+    with lock.open('x') as file:
+        file.write(str(os.getpid()))
+    model, model_bytes, count, records, supplemental_records = None, None, 0, [], []
+    ledger = hashlib.sha256()
+    failure = None
+    try:
+        with tempfile.TemporaryDirectory(dir=output) as directory:
+            for row, job, path in jobs(worker, manifest):
+                if job['model'] is not model:
+                    model, model_bytes = job['model'], rfc8785.dumps(job['model'])
+                if not path.exists():
+                    records.append({'run': path.name, 'status': 'original-not-recorded'})
+                    continue
+                original = expected = load(path)
+                ledger.update(rfc8785.dumps([path.name, file_digest(path)]) + b'\n')
+                if expected['job_digest'] != job_digest(job, model_bytes):
+                    raise ValueError('Recorded job identity differs')
+                target, report_records = output, records
+                if expected['status'] in ('timeout', 'execution_error'):
+                    records.append({'run': path.name, 'status': 'original-operational-failure'})
+                    if not supplemental:
+                        continue
+                    target, report_records = output / 'supplemental', supplemental_records
+                    if not (supplemental / path.name).exists():
+                        report_records.append({'run': path.name, 'status': 'supplemental-not-recorded'})
+                        continue
+                    attempt = load(supplemental / path.name)
+                    if (attempt['original_run'] != path.name or attempt['original_record_digest'] != digest(original)
+                            or attempt['kernel_digest'] != manifest['kernel_digest']):
+                        raise ValueError('Supplemental attempt belongs to different original evidence')
+                    expected = attempt['execution']
+                    if expected['job_digest'] != original['job_digest']:
+                        raise ValueError('Supplemental job identity differs')
+                    if expected['status'] in ('timeout', 'execution_error'):
+                        report_records.append({'run': path.name, 'status': 'supplemental-operational-failure'})
+                        continue
+                if expected['status'] != 'complete':
+                    raise ValueError('Unknown execution status')
+                audit, executed = replay_one(args, job, expected, path.name, target, directory, manifest, binary, replay_kernel, model_bytes)
+                count += int(executed)
+                report_records.append(audit)
+                if audit['status'] != 'exact-replay':
+                    raise ValueError('Replay differs: ' + path.name)
+                if args.limit and count >= args.limit:
+                    break
+    except BaseException as error:
+        failure = str(error) or type(error).__name__
+        raise
+    finally:
+        counts = Counter(r['status'] for r in records)
+        all_originals = failure is None and len(records) == expected_count
+        report = {'version': 'vah-panel-replay-2', 'original_kernel_digest': manifest['kernel_digest'],
+                  'worker_manifest_digest': digest(manifest),
+                  'original_records_digest': 'sha256:' + ledger.hexdigest(),
+                  'replay_kernel_digest': replay_kernel, 'expected_runs': expected_count, 'records': records,
+                  'complete': all_originals and all(r['status'] == 'exact-replay' for r in records),
+                  'coverage': {'expected_runs': expected_count, 'examined_runs': len(records), 'statuses': dict(counts)},
+                  'all_recorded_successes_reproduced': all_originals and all(r['status'] in ('exact-replay', 'original-operational-failure') for r in records),
+                  'supplemental': {'requested': bool(supplemental), 'records': supplemental_records,
+                      'all_outputs_reproduced': bool(supplemental) and all_originals
+                      and len(supplemental_records) == counts['original-operational-failure']
+                      and all(r['status'] in ('exact-replay', 'supplemental-operational-failure') for r in supplemental_records)},
+                  'error': failure,
+                  'interpretation': 'Exact scientific outputs, including traces; no original messages or keys are read by replay.'}
+        try:
+            save(output / 'replay-report.json', report)
+        finally:
+            lock.unlink()
     print(json.dumps({'complete': report['complete'], 'replayed': len(records), 'expected': expected_count}))
 
 
@@ -481,6 +633,14 @@ def main():
     run = commands.add_parser('run')
     run.add_argument('--worker', type=Path, required=True)
     run.add_argument('--limit', type=int, default=0)
+    run.add_argument('--binary', type=Path, help='Preserved executable; its digest must match the frozen manifest')
+    run.add_argument('--min-free-memory-mib', type=int, default=0, help='Wait before starting another search when available host memory is below this value')
+    retry = commands.add_parser('retry-operational', help='Retain original failed attempts and record one separate supplemental execution each')
+    retry.add_argument('--worker', type=Path, required=True)
+    retry.add_argument('--out', type=Path, required=True)
+    retry.add_argument('--binary', type=Path)
+    retry.add_argument('--limit', type=int, default=0)
+    retry.add_argument('--min-free-memory-mib', type=int, default=0)
     evaluate = commands.add_parser('evaluate')
     evaluate.add_argument('--worker', type=Path, required=True)
     evaluate.add_argument('--custodian', type=Path, required=True)
@@ -489,13 +649,18 @@ def main():
     replay.add_argument('--worker', type=Path, required=True)
     replay.add_argument('--out', type=Path, required=True)
     replay.add_argument('--limit', type=int, default=0)
+    replay.add_argument('--binary', type=Path, help='Explicit executable for reproduction; its digest is recorded')
+    replay.add_argument('--min-free-memory-mib', type=int, default=0)
+    replay.add_argument('--supplemental-retries', type=Path, help='Also reproduce separate supplemental outputs without replacing original failures')
     replay.add_argument('--retry-operational', action='store_true', help='Retain failed audit attempts and retry only runs that returned no scientific output')
     freeze = commands.add_parser('freeze')
     freeze.add_argument('--spec', type=Path, required=True)
     freeze.add_argument('--development-report', type=Path, required=True)
     freeze.add_argument('--out', type=Path, required=True)
     args = parser.parse_args()
-    {'prepare': prepare_panel, 'run': run_panel, 'evaluate': evaluate_panel, 'replay': replay_panel, 'freeze': freeze_settings}[args.command](args)
+    if getattr(args, 'limit', 0) < 0 or getattr(args, 'min_free_memory_mib', 0) < 0:
+        parser.error('Limits and memory thresholds must be nonnegative')
+    {'prepare': prepare_panel, 'run': run_panel, 'retry-operational': retry_panel, 'evaluate': evaluate_panel, 'replay': replay_panel, 'freeze': freeze_settings}[args.command](args)
 
 
 if __name__ == '__main__':

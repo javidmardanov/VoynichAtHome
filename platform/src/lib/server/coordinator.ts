@@ -2,6 +2,7 @@ import { identity, sha256, Submission, Work, Campaign, validateSearchWork, valid
 import type { D1Database } from '@cloudflare/workers-types';
 import { requireRecoveryEvidence } from './reports';
 import {compactInput,writeShared,loadInput,writeImmutableInput} from './inputs';
+import {operationalHealth,MAINTENANCE_MAX_AGE_SECONDS} from './health';
 
 export class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
 export type Guest = { id: string; user_id: string | null; blocked: number };
@@ -58,15 +59,16 @@ export async function contributions(db: D1Database, guest: Guest | null, userId:
 }
 
 export async function status(env: Env) {
-  const [control,campaigns,queue,budget,resources]=await Promise.all([
+  const [control,campaigns,queue,budget,resources,health]=await Promise.all([
     env.DB.prepare('SELECT stopped,reason FROM controls WHERE id = ?').bind('main').first(),
     env.DB.prepare(`SELECT id,title,question,status,scientific_status,manifest_digest FROM campaigns WHERE status<>'draft' ORDER BY created_at DESC LIMIT 50`).all(),
     env.DB.prepare(`SELECT state,COUNT(*) AS count FROM units GROUP BY state`).all(),
     env.DB.prepare('SELECT * FROM limits WHERE window = ?').bind(month()).first(),
-    env.DB.prepare('SELECT COALESCE(SUM(input_bytes),0)+COALESCE((SELECT SUM(input_bytes) FROM shared_objects),0) AS reserved_input_bytes,COALESCE(SUM(validation_runs),0) AS replay_attempts,COALESCE(SUM(replay_wall_ms),0) AS replay_wall_ms FROM units').first()
+    env.DB.prepare('SELECT COALESCE(SUM(input_bytes),0)+COALESCE((SELECT SUM(input_bytes) FROM shared_objects),0) AS reserved_input_bytes,COALESCE(SUM(validation_runs),0) AS replay_attempts,COALESCE(SUM(replay_wall_ms),0) AS replay_wall_ms FROM units').first(),
+    operationalHealth(env)
   ]);
-  return { version:'vah-status-1',stage:env.DEPLOYMENT_STAGE??'development',assignments_enabled:env.ASSIGNMENTS_ENABLED==='true' && !!control && !control.stopped,
-    reason:control?.reason??'No campaign is open.',campaigns:campaigns.results,queue:queue.results,budget,resources:{...resources,max_input_bytes:MAX_INPUT_STORAGE,measurement:'Replay elapsed time is not provider-metered CPU time. Storage counts compact inputs and shared objects; older full inputs retain their reservation.'},
+  return { version:'vah-status-1',stage:env.DEPLOYMENT_STAGE??'development',assignments_enabled:env.ASSIGNMENTS_ENABLED==='true' && !!control && !control.stopped && health.maintenance.healthy,
+    reason:control&&!control.stopped&&!health.maintenance.healthy?'Scheduled result checking is unavailable or overdue. Outstanding results can still be submitted.':control?.reason??'No campaign is open.',campaigns:campaigns.results,queue:queue.results,budget,health,resources:{...resources,max_input_bytes:MAX_INPUT_STORAGE,measurement:'Replay elapsed time is not provider-metered CPU time. Storage counts compact inputs and shared objects; older full inputs retain their reservation.'},
     validation:'Candidate checks and trusted replay; browser identifiers do not prove independent people or machines.' };
 }
 
@@ -75,6 +77,7 @@ export async function lease(env: Env, guest: Guest) {
   if (env.ASSIGNMENTS_ENABLED!=='true') return {state:'idle',message:'New assignments are closed.',retry_after_seconds:300};
   const control=await env.DB.prepare("SELECT stopped FROM controls WHERE id='main'").first<{stopped:number}>();
   if (!control || control.stopped) return {state:'idle',message:'The project has paused new assignments.',retry_after_seconds:300};
+  if(!(await operationalHealth(env)).maintenance.healthy)return {state:'idle',message:'Scheduled result checking is unavailable or overdue. Existing results can still be submitted.',retry_after_seconds:300};
   await reserveWindow(env.DB);
   const window=month(), attemptId=id(), at=now();
   // The database is the queue. INSERT SELECT and all budget changes are one
@@ -88,6 +91,7 @@ export async function lease(env: Env, guest: Guest) {
       SELECT ?,u.id,?,?,? FROM units u JOIN campaigns c ON c.id=u.campaign_id JOIN releases r ON r.id=u.release_id
       JOIN limits l ON l.window=? JOIN controls x ON x.id='main'
       WHERE x.stopped=0 AND c.status='active' AND r.state='approved' AND u.state IN ('open','checking')
+      AND EXISTS (SELECT 1 FROM operation_health WHERE name='scheduled-maintenance' AND last_success_at>=? AND last_success_at<=? AND last_error IS NULL)
       AND l.assignments<l.max_assignments AND l.reserved_ms + CASE WHEN u.reserved=0 THEN u.reserve_ms ELSE 0 END <= l.max_reserved_ms
       AND l.requests+2000<=l.max_requests
       AND (SELECT COUNT(*) FROM attempts WHERE state='leased' AND expires_at>?) < l.max_inflight
@@ -95,7 +99,7 @@ export async function lease(env: Env, guest: Guest) {
       AND (SELECT COUNT(*) FROM attempts WHERE unit_id=u.id AND (state IN ('submitted','checked') OR (state='leased' AND expires_at>?)))<2
       AND NOT EXISTS (SELECT 1 FROM attempts WHERE unit_id=u.id AND guest_id=?)
       AND NOT EXISTS (SELECT 1 FROM attempts WHERE guest_id=? AND state='leased' AND expires_at>?)
-      ORDER BY u.created_at,u.id LIMIT 1`).bind(attemptId,guest.id,at+600,at,window,at,at,guest.id,guest.id,at),
+      ORDER BY u.created_at,u.id LIMIT 1`).bind(attemptId,guest.id,at+600,at,window,at-MAINTENANCE_MAX_AGE_SECONDS,at,at,at,guest.id,guest.id,at),
     env.DB.prepare(`UPDATE limits SET assignments=assignments+1,reserved_ms=reserved_ms+COALESCE((SELECT CASE WHEN reserved=0 THEN reserve_ms ELSE 0 END FROM units WHERE id=(SELECT unit_id FROM attempts WHERE id=?)),0)
       WHERE window=? AND EXISTS (SELECT 1 FROM attempts WHERE id=?)`).bind(attemptId,window,attemptId),
     env.DB.prepare('UPDATE units SET reserved=1,reserved_window=? WHERE id=(SELECT unit_id FROM attempts WHERE id=?)').bind(window,attemptId)
@@ -183,7 +187,7 @@ export async function maintain(env: Env, run: Runner) {
     AND (SELECT COUNT(*) FROM attempts WHERE unit_id=units.id AND state='checked')<2
     AND NOT EXISTS (SELECT 1 FROM attempts WHERE unit_id=units.id AND (state='submitted' OR (state='leased' AND expires_at>?)))`).bind(now()).run();
   const pending=await env.DB.prepare(`SELECT DISTINCT u.id FROM units u JOIN attempts a ON a.unit_id=u.id WHERE a.state='submitted'
-    AND (u.state IN ('open','complete','delivery_exhausted') OR (u.state='checking' AND u.checking_until<?)) LIMIT 1`).bind(now()).all<{id:string}>();
+    AND (u.state IN ('open','complete','delivery_exhausted') OR (u.state='checking' AND u.checking_until<?)) ORDER BY a.submitted_at,u.id LIMIT 1`).bind(now()).all<{id:string}>();
   for (const unit of pending.results) await validateUnit(env,unit.id,run);
 }
 
