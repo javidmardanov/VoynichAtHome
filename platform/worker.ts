@@ -8,7 +8,8 @@ import type { ExecutionContext, ScheduledController } from '@cloudflare/workers-
 export default {
   fetch(request:Request,env:Env,ctx:ExecutionContext){return app.fetch(request,{...env,SEARCH_KERNEL:kernel},ctx);},
   async scheduled(_event:ScheduledController,env:Env,ctx:ExecutionContext){
-    ctx.waitUntil(dailyBackup(env));
-    ctx.waitUntil(recordOperation(env,'scheduled-maintenance',()=>maintain(env,(input,releaseId)=>trustedRun({...env,SEARCH_KERNEL:kernel},input,releaseId))));
+    ctx.waitUntil(recordOperation(env,'scheduled-maintenance',async()=>{
+      await Promise.all([dailyBackup(env),maintain(env,(input,releaseId)=>trustedRun({...env,SEARCH_KERNEL:kernel},input,releaseId))]);
+    }));
   }
 };

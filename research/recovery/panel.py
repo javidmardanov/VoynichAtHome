@@ -510,7 +510,8 @@ def replay_one(args, job, expected, name, output, directory, manifest, binary, r
             audit['actual_result'] = actual['result']
         save(audit_path, audit)
         print(json.dumps({'replay': name, 'status': audit['status'], 'audit': str(audit_path)}), flush=True)
-    return audit, executed
+    return {**audit, 'audit_path': audit_path.relative_to(args.out.resolve()).as_posix(),
+            'audit_record_digest': file_digest(audit_path)}, executed
 
 
 def replay_panel(args):
@@ -533,7 +534,7 @@ def replay_panel(args):
     with lock.open('x') as file:
         file.write(str(os.getpid()))
     model, model_bytes, count, records, supplemental_records = None, None, 0, [], []
-    ledger = hashlib.sha256()
+    ledger, supplemental_ledger = hashlib.sha256(), hashlib.sha256()
     failure = None
     try:
         with tempfile.TemporaryDirectory(dir=output) as directory:
@@ -557,6 +558,7 @@ def replay_panel(args):
                         report_records.append({'run': path.name, 'status': 'supplemental-not-recorded'})
                         continue
                     attempt = load(supplemental / path.name)
+                    supplemental_ledger.update(rfc8785.dumps([path.name, file_digest(supplemental / path.name)]) + b'\n')
                     if (attempt['original_run'] != path.name or attempt['original_record_digest'] != digest(original)
                             or attempt['kernel_digest'] != manifest['kernel_digest']):
                         raise ValueError('Supplemental attempt belongs to different original evidence')
@@ -589,6 +591,7 @@ def replay_panel(args):
                   'coverage': {'expected_runs': expected_count, 'examined_runs': len(records), 'statuses': dict(counts)},
                   'all_recorded_successes_reproduced': all_originals and all(r['status'] in ('exact-replay', 'original-operational-failure') for r in records),
                   'supplemental': {'requested': bool(supplemental), 'records': supplemental_records,
+                      'records_digest': 'sha256:' + supplemental_ledger.hexdigest(),
                       'all_outputs_reproduced': bool(supplemental) and all_originals
                       and len(supplemental_records) == counts['original-operational-failure']
                       and all(r['status'] in ('exact-replay', 'supplemental-operational-failure') for r in supplemental_records)},

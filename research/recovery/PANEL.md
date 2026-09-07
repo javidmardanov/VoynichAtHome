@@ -56,3 +56,5 @@ python research/recovery/bundle.py verify NEW_ARCHIVE_DIRECTORY/evaluation-v1.zi
 ```
 
 `ORIGINAL_SOURCE_DIRECTORY` is the preserved `data/recovery` directory containing original source texts, retained notices, normalized texts, and resource manifests. Packaging checks the published evaluation-v1 commitments, complete terminal coverage, original and supplemental replay coverage, and the matching original-record digest before admitting retired answers. It includes the frozen Git source, current reporting tools with per-file hashes, all original outcomes, supplemental attempts, replay audits, inputs and executable. It then reads every archived file back and checks its checksum before writing `verification.json` and `SHA256SUMS`. An interrupted candidate has no verification receipt and must not be published. Packaging does not publish the archive or establish independent scientific review.
+
+The archive also checks the checksum of each successful replay's actual audit file and binds supplemental attempt bytes to their replay report. A previously passing report cannot certify a subsequently changed original result, supplemental attempt, or replay audit.

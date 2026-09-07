@@ -41,6 +41,29 @@ def validate_ready(manifest, report, replay):
             or counts['original-operational-failure'] != report['coverage']['operational_failures']
             or sum(counts.values()) != expected):
         raise ValueError('Execution and replay coverage disagree')
+    supplemental = replay['supplemental'].get('records', [])
+    original_failures = {row['run'] for row in records if row['status'] == 'original-operational-failure'}
+    if (len(supplemental) != len(original_failures) or {row['run'] for row in supplemental} != original_failures
+            or any(row['status'] not in ('exact-replay', 'supplemental-operational-failure') for row in supplemental)):
+        raise ValueError('Supplemental replay coverage is missing or inconsistent')
+
+
+def verify_evidence_hashes(report, replay, hashes):
+    for rows, prefix, expected in (
+        (replay['records'], 'worker/runs/', report['original_records_digest']),
+        (replay['supplemental']['records'], 'supplemental-attempts/', replay['supplemental']['records_digest']),
+    ):
+        ledger = hashlib.sha256()
+        for row in rows:
+            ledger.update(rfc8785.dumps([row['run'], hashes[prefix + row['run']]]) + b'\n')
+            if row['status'] == 'exact-replay':
+                if hashes['audit/' + row['audit_path']] != row['audit_record_digest']:
+                    raise ValueError('Archived replay audit differs from its completed report')
+        if 'sha256:' + ledger.hexdigest() != expected:
+            raise ValueError('Archived execution bytes differ from the report and replay ledger')
+        actual = {name for name in hashes if name.startswith(prefix) and name != 'supplemental-attempts/retry-report.json'}
+        if actual != {prefix + row['run'] for row in rows}:
+            raise ValueError('Unexpected or missing original or supplemental attempt records')
 
 
 def safe_name(name):
@@ -131,13 +154,7 @@ def build_bundle(args):
                 if index % 10000 == 0:
                     print(json.dumps({'archived_files': index, 'total_files': len(sources)}), flush=True)
             hashes = {row['path']: 'sha256:' + row['sha256'] for row in inventory}
-            ledger = hashlib.sha256()
-            for row in replay['records']:
-                ledger.update(rfc8785.dumps([row['run'], hashes['worker/runs/' + row['run']]]) + b'\n')
-            if 'sha256:' + ledger.hexdigest() != report['original_records_digest']:
-                raise ValueError('Archived original bytes differ from the report and replay ledger')
-            if sum(name.startswith('worker/runs/') for name in hashes) != len(replay['records']):
-                raise ValueError('Unexpected original run records would be included')
+            verify_evidence_hashes(report, replay, hashes)
             archive_manifest = {'version': 'vah-recovery-archive-1', 'created_at': datetime.now(timezone.utc).isoformat(),
                 'worker_manifest_digest': digest(manifest), 'original_records_digest': report['original_records_digest'],
                 'frozen_source_commit': preparation['freeze_commit'], 'reporting_tools_base_commit': revision,

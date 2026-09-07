@@ -27,6 +27,10 @@ Local process and log locations, relative to the current checkout:
 
 These files are private operational state and are excluded from Git. The venv launcher PID in the receipt differs from the actual Python PID in the original worker's `.running` lock. Before removing a lock, verify that its process and command line are no longer active. Never infer a stale lock solely from elapsed time.
 
+An hourly task follow-up, `continue-frozen-voynich-study`, checks this process and advances the sequential study through separate retries, full replay, final reporting, and archive verification. It stays quiet during normal progress and pauses when a concrete research package is ready for the owner's publication decision. This is local orchestration; it requires the owner's computer and does not establish unattended hosted operation. Website work remains deferred.
+
+Use `data/operations/evaluation-v1/replay` for the replay audit and `data/operations/evaluation-v1/report.json` for the finished report. Include the existing supplemental retry directory when replaying. Place each archive candidate in a new sibling directory. Update the phase process receipt and use separate logs when starting each long phase. Concurrent local builds, browser checks, and other machine activity affect resource measurements and must be disclosed in the final study.
+
 Remaining research steps:
 
 1. Account for all 351,000 original searches without replacing any terminal outcome.
@@ -39,7 +43,7 @@ The executable-path option enforces the original digest for original runs and su
 
 ## Software evidence and remaining acceptance
 
-Local Windows checks passed for the implementation under review: pinned Rust workspace tests and release build; 32 Python tests; 31 platform tests; source/type checks; native CLI and Worker packaging; 26 browser cases across all three engines; and 25 computing clients plus five waiting clients. The new streamed report reproduced all 324 published development summaries exactly. Revision-specific CI is recorded in [release status](RELEASE-STATUS.md) after it finishes. Local fixtures are not real provider sessions or hosted scheduling evidence.
+Local Windows checks passed for the implementation under review: pinned Rust workspace tests and release build; 33 Python tests; 31 platform tests; source/type checks; native CLI and Worker packaging; 26 browser cases across all three engines; and 25 computing clients plus five waiting clients. The new streamed report reproduced all 324 published development summaries exactly. Revision-specific CI is recorded in [release status](RELEASE-STATUS.md) after it finishes. Local fixtures are not real provider sessions or hosted scheduling evidence.
 
 The additive `0006` migration records scheduled-maintenance and backup health. New leases stop after 20 minutes without healthy scheduled maintenance; valid outstanding submissions remain accepted. Restoration revokes sessions, preserves deletion obligations and the manual stop, and clears restored health so a fresh scheduled execution is required. Backups are schema-bound: use a matching release to restore older backups; do not bypass compatibility checks.
 
