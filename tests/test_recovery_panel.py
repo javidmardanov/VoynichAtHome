@@ -87,7 +87,8 @@ def test_operational_retry_keeps_original_and_never_retries_successes(tmp_path, 
     assert panel.load(args.out / failed.name)['original_record_digest'] == panel.digest(panel.load(failed))
 
 
-def test_evaluation_separates_terminal_coverage_from_operational_success(tmp_path, monkeypatch):
+@pytest.mark.parametrize('interrupted', [False, True])
+def test_evaluation_separates_terminal_coverage_from_operational_success(tmp_path, monkeypatch, interrupted):
     from types import SimpleNamespace
     worker, custodian = tmp_path / 'worker', tmp_path / 'custodian'
     worker.mkdir(); custodian.mkdir()
@@ -107,6 +108,9 @@ def test_evaluation_separates_terminal_coverage_from_operational_success(tmp_pat
                       'status': 'complete' if success else 'execution_error', 'exit_code': 0 if success else 1,
                       'elapsed_ms': 1, 'peak_sampled_rss_bytes': 1}
             if success: record['result'] = {'plaintext': 'abcd', 'score': 1, 'result_digest': 'fixture', 'evaluations': 1}
+            if not success and interrupted:
+                record.update({'elapsed_ms': None, 'exit_code': None, 'peak_sampled_rss_bytes': None,
+                               'interruption': {'classification': 'runner-interruption', 'evidence': []}})
             panel.save(path, record); jobs.append((row, job, path))
     monkeypatch.setattr(panel, 'jobs', lambda *_: iter(jobs))
     monkeypatch.setattr(panel, 'validate_result', lambda *_: None)
@@ -115,6 +119,13 @@ def test_evaluation_separates_terminal_coverage_from_operational_success(tmp_pat
     report = panel.load(out)
     assert report['complete'] and not report['all_searches_succeeded_operationally']
     assert report['coverage'] == {'expected_searches': 6, 'recorded_searches': 6, 'successful_executions': 5, 'operational_failures': 1, 'unrecorded_searches': 0}
+    if interrupted:
+        failure = report['operational_failures'][0]
+        assert failure['exit_code'] is None and failure['interruption']['classification'] == 'runner-interruption'
+        condition = next(r for r in report['conditions'] if r['control'] == 'shuffled' and r['algorithm'] == 'beam-v1')
+        assert condition['elapsed_ms'] is None
+        assert condition['unmeasured_elapsed_starts'] == 1 and condition['measured_elapsed_ms'] == 0
+        assert condition['peak_sampled_rss_bytes'] is None and condition['unmeasured_memory_starts'] == 1
     jobs[-1][2].unlink()
     panel.evaluate_panel(SimpleNamespace(worker=worker, custodian=custodian, out=out))
     assert not panel.load(out)['complete']

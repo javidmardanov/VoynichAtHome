@@ -49,6 +49,12 @@ def validate_ready(manifest, report, replay):
 
 
 def verify_evidence_hashes(report, replay, hashes):
+    for failure in report.get('operational_failures', []):
+        for evidence in failure.get('interruption', {}).get('evidence', []):
+            path = evidence['path']
+            if (not safe_name(path) or not path.startswith('incidents/')
+                    or hashes.get('worker/' + path) != 'sha256:' + evidence['sha256']):
+                raise ValueError('Interrupted execution evidence is missing or differs from its original record')
     for rows, prefix, expected in (
         (replay['records'], 'worker/runs/', report['original_records_digest']),
         (replay['supplemental']['records'], 'supplemental-attempts/', replay['supplemental']['records_digest']),
@@ -121,8 +127,10 @@ def build_bundle(args):
                 add(path, prefix + '/' + path.relative_to(directory).as_posix())
 
     add(worker / 'manifest.json', 'worker/manifest.json')
-    for name in ('cases', 'models', 'ciphertexts', 'runs'):
+    for name in ('cases', 'models', 'runs'):
         tree(worker / name, 'worker/' + name, '*.json')
+    tree(worker / 'ciphertexts', 'worker/ciphertexts')
+    tree(worker / 'incidents', 'worker/incidents')
     tree(audit, 'audit', '*.json')
     tree(retries, 'supplemental-attempts', '*.json')
     tree(args.sources, 'sources')

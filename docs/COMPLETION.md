@@ -1,4 +1,4 @@
-# Completion ledger — 7 September 2026
+# Completion ledger — updated 8 September 2026 UTC
 
 The owner deferred website work on 7 September. Deployment, provider sign-in setup, hosted acceptance, the public pilot, and the final publication decision remain pending. Current work continues the frozen recovery study, its reproducibility tools, and verification of the software repairs already started. This is not a completed public release.
 
@@ -26,6 +26,14 @@ Local process and log locations, relative to the current checkout:
 - `data/operations/evaluation-v1/retries`: supplemental attempts, separate from original outcomes.
 
 These files are private operational state and are excluded from Git. The venv launcher PID in the receipt differs from the actual Python PID in the original worker's `.running` lock. Before removing a lock, verify that its process and command line are no longer active. Never infer a stale lock solely from elapsed time.
+
+At the 8 September 03:12 UTC check, the original runner and its launcher were absent. Its log ended at 02:33:52 UTC after 111,608 terminal outcomes. The next frozen job was staged, but no native result or partial outcome survived; both stderr logs were empty. No matching application error, resource-exhaustion event, or unexpected shutdown was found in the inspected ten-minute event window. The system had not rebooted. The cause remains unknown, including whether native execution had started.
+
+The complete available evidence and the one-time recovery script were copied and hash-verified under the original worker's `incidents/2026-09-08-runner-interruption`. The staged job matched the first missing registered search, `63e34b98232631eed1c108023ec1b99d-shuffled-restart-anneal-v1-02.json`, byte for byte. A new original operational-failure record retains that interruption with null exit status and resource measurements. It does not invent a timeout, timing, or scientific result. The original allocation failure remains byte-identical. There are now two original operational failures; the interrupted search is eligible only for a separate supplemental attempt after original execution closes.
+
+A second private copy at `C:/Users/javid/Documents/VoynichAtHome-Backups/2026-09-08-runner-interruption` contains the incident evidence and new original failure: nine verified files totaling 16,684,504 bytes. This is also on the same local disk; the original frozen baseline backup was not modified.
+
+After repeated process-inactivity checks, the stale lock was removed and the sequential runner restarted at 03:16:53 UTC with 111,609 recorded outcomes. The current receipt points to timestamped logs and links the prior receipt and incident evidence. It first validates existing job identities before continuing with missing searches. Do not mistake this initial scan, which writes no progress log, for a stalled native search. Reporting now distinguishes missing measurements from zero, and final packaging includes original text ciphertexts and checksum-bound interruption evidence. The 35 Python tests passed locally after these changes.
 
 An hourly task follow-up, `continue-frozen-voynich-study`, checks this process and advances the sequential study through separate retries, full replay, final reporting, and archive verification. It stays quiet during normal progress and pauses when a concrete research package is ready for the owner's publication decision. This is local orchestration; it requires the owner's computer and does not establish unattended hosted operation. Website work remains deferred.
 

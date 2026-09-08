@@ -427,7 +427,8 @@ def evaluate_panel(args):
                 successful += 1
             else:
                 operational_failures.append({'run': path.name, 'job_digest': record['job_digest'],
-                    'status': record['status'], 'exit_code': record['exit_code'], 'error': record.get('error')})
+                    'status': record['status'], 'exit_code': record['exit_code'], 'error': record.get('error'),
+                    **({'interruption': record['interruption']} if 'interruption' in record else {})})
             records.append(record)
         plain = answers['cases'][row['id']]['plaintext']
         for starts in manifest['spec']['starts']:
@@ -435,12 +436,19 @@ def evaluate_panel(args):
             complete = [r for r in selected if r['status'] == 'complete']
             best = max(complete, key=lambda r: (r['result']['score'], -r['start']), default=None)
             valid_readings = {r['result']['plaintext'] for r in complete}
+            missing_elapsed = sum(r['elapsed_ms'] is None for r in selected)
+            measured_elapsed = sum(r['elapsed_ms'] for r in selected if r['elapsed_ms'] is not None)
+            missing_memory = sum(r['peak_sampled_rss_bytes'] is None for r in selected)
+            measured_peaks = [r['peak_sampled_rss_bytes'] for r in selected if r['peak_sampled_rss_bytes'] is not None]
             summary = {**{k: row[k] for k in ('id', 'language', 'length', 'family', 'control')},
                        'algorithm': algorithm, 'budget_starts': starts, 'executed_starts': len(selected),
                        'complete_starts': len(complete), 'expected_starts': 1 if algorithm == 'beam-v1' else starts,
-                       'elapsed_ms': sum(r['elapsed_ms'] for r in selected),
+                       'elapsed_ms': None if missing_elapsed else measured_elapsed,
+                       **({'measured_elapsed_ms': measured_elapsed, 'unmeasured_elapsed_starts': missing_elapsed}
+                          if missing_elapsed else {}),
                        'actual_evaluations': sum(r['result']['evaluations'] for r in complete),
-                       'peak_sampled_rss_bytes': max((r['peak_sampled_rss_bytes'] or 0 for r in selected), default=0),
+                       'peak_sampled_rss_bytes': max(measured_peaks, default=None if missing_memory else 0),
+                       **({'unmeasured_memory_starts': missing_memory} if missing_memory else {}),
                        'distinct_valid_decoder_outputs': len(valid_readings),
                        'tied_best_outputs': len({r['result']['plaintext'] for r in complete if best and r['result']['score'] == best['result']['score']}),
                        'note': 'Beam is deterministic and executes once; additional starts have no defined meaning.' if algorithm == 'beam-v1' else None,
