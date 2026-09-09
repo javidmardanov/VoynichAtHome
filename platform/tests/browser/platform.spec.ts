@@ -2,6 +2,7 @@ import { test,expect } from '@playwright/test';
 import { readFile,writeFile,mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { spawnSync,spawn } from 'node:child_process';
+import { identity } from '../../src/lib/contracts';
 test('public pages, keyboard access, and mobile layout',async({page})=>{
   for(const route of ['/','/methods','/experiments','/community','/account','/verify','/downloads','/privacy','/status','/research/development']){
     const response=await page.goto(route);expect(response?.status()).toBe(200);await expect(page.locator('h1')).toHaveCount(1);
@@ -56,6 +57,21 @@ test('owner access fails closed, then a real signed session can use controls',as
   if(info.project.name==='chromium')expect((headers['set-cookie']??'').includes(cookie.name+'=')).toBe(true);
   await page.getByRole('button',{name:'Pause new assignments'}).click();await expect(page.getByText('Assignments are paused.',{exact:false})).toBeVisible();
   await page.getByRole('button',{name:'Open assignments'}).click();await expect(page.getByText('Assignments are open.',{exact:false})).toBeVisible();
+});
+
+test('only authenticated owner requests allow the backup object envelope',async({request},info)=>{
+  test.skip(info.project.name!=='chromium','Identical HTTP boundary across browser engines.');
+  const origin='http://127.0.0.1:8899',owner=JSON.parse(await readFile('test-results/owner-cookie.json','utf8'));
+  const value={padding:'x'.repeat(8000000-14)},digest=await identity(value);
+  const payload={action:'import-backup-object',object:{key:'shared/'+digest.slice(7)+'.json',digest,value}};
+  const headers={origin,cookie:owner.name+'='+owner.value};
+  // Assignment switch is enabled in this fixture, so a parsed import must reach the maintenance gate.
+  const imported=await request.post('/api/v1/owner',{headers,data:payload});
+  expect(imported.status()).toBe(409);expect((await imported.json()).error).toContain('Disable assignments');
+  const guestResponse=await request.post('/api/v1/guest',{headers:{origin},data:{}});expect(guestResponse.ok()).toBe(true);
+  expect((await request.post('/api/v1/results',{headers:{origin},data:payload})).status()).toBe(413);
+  expect((await request.post('/api/v1/owner',{headers:{origin,cookie:''},data:payload})).status()).toBe(403);
+  expect((await request.post('/api/v1/owner',{headers,data:{...payload,padding:'x'.repeat(1024)}})).status()).toBe(413);
 });
 
 test('a lost submission acknowledgement survives offline mode and reload without duplicate credit',async({page,context,request})=>{

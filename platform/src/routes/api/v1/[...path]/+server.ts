@@ -8,11 +8,11 @@ import { ownerAction } from '$lib/server/owner';
 import { trustedRun } from '$lib/server/runner';
 import { sha256 } from '$lib/contracts';
 import { portableObject } from '$lib/server/backup';
-async function body(request:Request) {
+async function body(request:Request,maxBytes=8000000) {
   if(!request.headers.get('content-type')?.startsWith('application/json'))throw new ApiError(415,'Use application/json.');
   const reader=request.body?.getReader();if(!reader)throw new ApiError(400,'A JSON body is required.');
   const chunks:Uint8Array[]=[];let size=0;
-  for(;;){const part=await reader.read();if(part.done)break;size+=part.value.length;if(size>8000000){await reader.cancel();throw new ApiError(413,'Request exceeds the size limit.');}chunks.push(part.value);}
+  for(;;){const part=await reader.read();if(part.done)break;size+=part.value.length;if(size>maxBytes){await reader.cancel();throw new ApiError(413,'Request exceeds the size limit.');}chunks.push(part.value);}
   const bytes=new Uint8Array(size);let pos=0;for(const chunk of chunks){bytes.set(chunk,pos);pos+=chunk.length;}
   try{return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));}catch{throw new ApiError(400,'Invalid JSON.');}
 }
@@ -55,7 +55,7 @@ const handler:RequestHandler=async(event)=>{
     if(path==='claim'&&request.method==='POST'){if(!guest||!locals.user)throw new ApiError(401,'Sign in from the guest browser you want to attach.');return json(await claimGuest(env.DB,guest,locals.user.id));}
     if(path==='profile'&&request.method==='POST'){if(!locals.user)throw new ApiError(401,'Sign in to edit a profile.');return json(await saveProfile(env,locals.user.id,await body(request)));}
     if(path==='team'&&request.method==='POST'){if(!locals.user)throw new ApiError(401,'Sign in to join a team.');return json(await changeTeam(env,locals.user.id,await body(request)));}
-    if(path==='owner'&&request.method==='POST'){if(!locals.owner||!locals.user)throw new ApiError(403,'Owner access required.');return json(await ownerAction(env,locals.user.id,await body(request)));}
+    if(path==='owner'&&request.method==='POST'){if(!locals.owner||!locals.user)throw new ApiError(403,'Owner access required.');return json(await ownerAction(env,locals.user.id,await body(request,8001024)));} // Allow the envelope around an 8 MB backup object.
     if(path.startsWith('owner/backup/')&&!mutating){if(!locals.owner)throw new ApiError(403,'Owner access required.');return portableObject(env,path.slice('owner/backup/'.length),url.searchParams.get('key')??'');}
     if(path==='owner/validate'&&request.method==='POST'){if(!locals.owner)throw new ApiError(403,'Owner access required.');platform.context.waitUntil(maintain(env,(input,releaseId)=>trustedRun(env,input,releaseId)));return json({queued:true});}
     if(path==='owner'&&!mutating){if(!locals.owner)throw new ApiError(403,'Owner access required.');

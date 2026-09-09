@@ -1,6 +1,6 @@
-# Completion ledger — updated 8 September 2026 UTC
+# Completion ledger — updated 9 September 2026 UTC
 
-The owner deferred website work on 7 September. Deployment, provider sign-in setup, hosted acceptance, the public pilot, and the final publication decision remain pending. Current work continues the frozen recovery study, its reproducibility tools, and verification of the software repairs already started. This is not a completed public release.
+The owner renewed the build, test, verification, and deployment request on 9 September UTC, following the 7 September website deferral. Private deployment work has resumed alongside the unchanged frozen recovery study. Provider sign-in setup, hosted acceptance, the public pilot, and the final publication decision remain pending. This is not a completed public release.
 
 ## Preserved research
 
@@ -35,7 +35,7 @@ A second private copy at `C:/Users/javid/Documents/VoynichAtHome-Backups/2026-09
 
 After repeated process-inactivity checks, the stale lock was removed and the sequential runner restarted at 03:16:53 UTC with 111,609 recorded outcomes. The current receipt points to timestamped logs and links the prior receipt and incident evidence. It first validates existing job identities before continuing with missing searches. Do not mistake this initial scan, which writes no progress log, for a stalled native search. Reporting now distinguishes missing measurements from zero, and final packaging includes original text ciphertexts and checksum-bound interruption evidence. The 35 Python tests passed locally after these changes.
 
-An hourly task follow-up, `continue-frozen-voynich-study`, checks this process and advances the sequential study through separate retries, full replay, final reporting, and archive verification. It stays quiet during normal progress and pauses when a concrete research package is ready for the owner's publication decision. This is local orchestration; it requires the owner's computer and does not establish unattended hosted operation. Website work remains deferred.
+An hourly task follow-up, `continue-frozen-voynich-study`, checks this process and advances the sequential study through separate retries, full replay, final reporting, and archive verification. It stays quiet during normal progress and pauses when a concrete research package is ready for the owner's publication decision. This is local orchestration; it requires the owner's computer and does not establish unattended hosted operation. Website work resumed with the 9 September UTC request; this local follow-up remains dedicated to the frozen study.
 
 Use `data/operations/evaluation-v1/replay` for the replay audit and `data/operations/evaluation-v1/report.json` for the finished report. Include the existing supplemental retry directory when replaying. Place each archive candidate in a new sibling directory. Update the phase process receipt and use separate logs when starting each long phase. Concurrent local builds, browser checks, and other machine activity affect resource measurements and must be disclosed in the final study.
 
@@ -57,4 +57,4 @@ The additive `0006` migration records scheduled-maintenance and backup health. N
 
 Local Python is `.venv/Scripts/python.exe`. The pinned Rust toolchain is available by setting `CARGO_HOME` and `RUSTUP_HOME` to the original task's sibling `work/toolchain/cargo` and `work/toolchain/rustup` directories, then adding the cargo `bin` directory to `PATH`. Current release builds use this checkout's `kernel/target`; the study uses only the separate backed-up binary.
 
-Hosted scheduling, real devices, measured operating costs, OAuth, the public campaign, external scientific review, and final publication have no new acceptance evidence. The owner's website deferral does not turn those unfinished gates into passed gates.
+Hosted scheduling, real devices, measured operating costs, OAuth, the public campaign, external scientific review, and final publication have no new acceptance evidence. Resuming deployment does not turn those unfinished gates into passed gates.

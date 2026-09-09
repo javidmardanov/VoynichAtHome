@@ -145,7 +145,7 @@ export async function validateUnit(env: Env, unitId: string, run: Runner) {
   if (!unit.trusted_hash) {
     await reserveWindow(env.DB);
     const started=performance.now(),claimUntil=now()+300;
-    const batch=await env.DB.batch([
+    const batch=await env.DB.batch<{id:string;validation_runs:number}>([
       env.DB.prepare(`UPDATE units SET state='checking',checking_until=?,validation_runs=validation_runs+1 WHERE id=? AND trusted_hash IS NULL AND reserved=1
         AND (state IN ('open','delivery_exhausted') OR (state='checking' AND checking_until<?))
         AND (validation_runs=0 OR EXISTS (SELECT 1 FROM limits WHERE window=? AND reserved_ms+units.reserve_ms<=max_reserved_ms)) RETURNING id,validation_runs`)
@@ -163,10 +163,15 @@ export async function validateUnit(env: Env, unitId: string, run: Runner) {
       const input=await loadInput(env,unit.input_key,unit.input_digest);
       const result=await run(input,unit.release_id); // full trusted replay, including rescoring
       const trustedHash=await identity(result);
-      await env.DB.prepare(`UPDATE units SET trusted_result=?,trusted_hash=?,state='open',checking_until=NULL,validation_error=NULL,replay_wall_ms=replay_wall_ms+? WHERE id=?`).bind(JSON.stringify(result),trustedHash,Math.ceil(performance.now()-started),unitId).run();
+      const saved=await env.DB.prepare(`UPDATE units SET trusted_result=?,trusted_hash=?,state='open',checking_until=NULL,validation_error=NULL,replay_wall_ms=replay_wall_ms+?
+        WHERE id=? AND validation_runs=? AND state='checking' AND trusted_hash IS NULL RETURNING id`)
+        .bind(JSON.stringify(result),trustedHash,Math.ceil(performance.now()-started),unitId,claimed.validation_runs).first();
+      if(!saved)return; // A newer replay owns the unit after this claim expires.
       unit={...unit,trusted_hash:trustedHash};
     } catch (error) {
-      await env.DB.prepare(`UPDATE units SET state='validation_error',checking_until=NULL,validation_error=?,replay_wall_ms=replay_wall_ms+? WHERE id=?`).bind(String(error).slice(0,300),Math.ceil(performance.now()-started),unitId).run();
+      await env.DB.prepare(`UPDATE units SET state='validation_error',checking_until=NULL,validation_error=?,replay_wall_ms=replay_wall_ms+?
+        WHERE id=? AND validation_runs=? AND state='checking' AND trusted_hash IS NULL`)
+        .bind(String(error).slice(0,300),Math.ceil(performance.now()-started),unitId,claimed.validation_runs).run();
       return; // operational failure, never a hypothesis rejection
     }
   }
@@ -177,7 +182,7 @@ export async function validateUnit(env: Env, unitId: string, run: Runner) {
       SELECT a.id,a.guest_id,a.unit_id,u.credit,? FROM attempts a JOIN units u ON u.id=a.unit_id JOIN releases r ON r.id=u.release_id
       WHERE a.unit_id=? AND a.state='checked' AND r.state='approved'`).bind(now(),unitId),
     env.DB.prepare(`UPDATE units SET state='complete' WHERE id=? AND (SELECT COUNT(*) FROM attempts WHERE unit_id=? AND state='checked')>=2`).bind(unitId,unitId),
-    env.DB.prepare(`UPDATE campaigns SET status='completed',updated_at=? WHERE id=? AND status='active'
+    env.DB.prepare(`UPDATE campaigns SET status='completed',updated_at=? WHERE id=? AND status IN ('active','paused')
       AND EXISTS (SELECT 1 FROM units WHERE campaign_id=?) AND NOT EXISTS (SELECT 1 FROM units WHERE campaign_id=? AND state<>'complete')`).bind(now(),unit.campaign_id,unit.campaign_id,unit.campaign_id)
   ]);
 }
@@ -186,8 +191,9 @@ export async function maintain(env: Env, run: Runner) {
     AND (SELECT COUNT(*) FROM attempts WHERE unit_id=units.id)>=attempt_limit
     AND (SELECT COUNT(*) FROM attempts WHERE unit_id=units.id AND state='checked')<2
     AND NOT EXISTS (SELECT 1 FROM attempts WHERE unit_id=units.id AND (state='submitted' OR (state='leased' AND expires_at>?)))`).bind(now()).run();
-  const pending=await env.DB.prepare(`SELECT DISTINCT u.id FROM units u JOIN attempts a ON a.unit_id=u.id WHERE a.state='submitted'
-    AND (u.state IN ('open','complete','delivery_exhausted') OR (u.state='checking' AND u.checking_until<?)) ORDER BY a.submitted_at,u.id LIMIT 1`).bind(now()).all<{id:string}>();
+  const pending=await env.DB.prepare(`SELECT u.id FROM units u JOIN attempts a ON a.unit_id=u.id JOIN releases r ON r.id=u.release_id
+    WHERE a.state='submitted' AND r.state='approved'
+    AND (u.state IN ('open','complete','delivery_exhausted') OR (u.state='checking' AND u.checking_until<?)) GROUP BY u.id ORDER BY MIN(a.submitted_at),u.id LIMIT 1`).bind(now()).all<{id:string}>();
   for (const unit of pending.results) await validateUnit(env,unit.id,run);
 }
 

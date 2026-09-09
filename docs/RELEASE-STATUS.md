@@ -2,7 +2,7 @@
 
 Status: development, with an owner-only [hosted preview](https://voynich-at-home.jenobi.chatgpt.site). Assignments are disabled. No public research release or production readiness is claimed.
 
-On 7 September the owner deferred website work. Deployment, OAuth setup, hosted rehearsal, and public campaign launch are paused. The frozen local study and reproducibility tooling continue; see the [completion ledger](COMPLETION.md). Existing local browser and platform repairs have been checked, without changing the hosted preview.
+The owner renewed the build, test, verification, and deployment request on 9 September UTC, following the 7 September website deferral. Private deployment work has resumed. Public campaign launch remains gated on scientific and hosted acceptance. The frozen local study and reproducibility tooling continue; see the [completion ledger](COMPLETION.md).
 
 | Stage | Implemented and checked | Still required |
 |---|---|---|
@@ -21,6 +21,14 @@ Every original result was replayed exactly on the same native host, including it
 Evaluation settings were published in commit `5c1ec449f218f876d6160f99e0e9d62737d6e121` before fetching evaluation works. Preparation produced 1,800 message-and-key cases and 5,400 comparison inputs with zero preparation failures. A verified private backup on 7 September preserved the original 19,499 successful executions and one allocation failure. The remaining 331,500 searches then resumed sequentially with the same executable, inputs, seeds, budgets, and timeout. A separate supplemental retry succeeded; it did not replace the original failure. Answers remain outside worker inputs and outside the repository. Full evaluation and replay remain in progress.
 
 On 8 September UTC the runner disappeared after 111,608 recorded outcomes, leaving the next job staged without a result. Its cause is unknown. Verified incident evidence and a second original operational failure were preserved before restarting the same sequential study. Unknown timing, memory and exit status are explicitly recorded as unknown; a future supplemental attempt cannot replace this outcome. See the completion ledger for the incident and backup evidence.
+
+## Coordinator hardening on 9 September UTC
+
+Scheduled verification now skips pending work from revoked releases, so it cannot starve later approved submissions. Replay completion and failure writes are bound to the claimed validation generation; an expired runner cannot overwrite a newer trusted result. Paused campaigns finish when their outstanding work is fully checked, and concurrent owner state changes cannot reopen completed campaigns. Resuming a legacy paused-but-finished campaign reconciles it directly to completed.
+
+Authenticated owner requests now allow 1,024 bytes of envelope overhead around an 8,000,000-byte backup object. General API limits and the raw object bound are unchanged. The owner export list identifies larger objects that require provider upload, as already specified in the operating guide.
+
+Local Windows checks passed 62 Rust tests, 35 Python tests, 36 platform tests, source/type checks, the production build, and CLI/Worker packaging. Five focused lifecycle and backup-boundary regressions passed again with the updated dependency. The dependency audit identified the upstream [Sharp/libheif advisory](https://github.com/lovell/sharp/security/advisories/GHSA-rgj7-g3m4-5g8c); Sharp is overridden to 0.35.4, and the pinned npm audit then reported zero vulnerabilities. This does not establish hosted operations or general absence of vulnerabilities. Browser/load and private deployment evidence for this revision are recorded separately when completed.
 
 ## Completed software evidence
 
@@ -54,4 +62,4 @@ That is an empty-preview rollout rehearsal. It is not proof of safe rollback dur
 
 The initial checking reserve is deliberately conservative: 30,000 ms per trusted replay and a 1,000,000 ms monthly allocation allow at most 33 first replay reservations before funded retries. The input reserve is 128 MB, and traffic reserve stops new assignment before the finishing allowance is consumed. Larger campaigns require measured hosted cost and an owner-approved allocation. These counters are not a provider-enforced spending cap. No paid setup has been performed.
 
-When the owner resumes website work, the dependencies are actual OAuth applications and the owner's signed-in account, provider access to verify scheduled maintenance, and approved spend if required. Hosted checks must operate independently of the owner's computer. Those gates remain deferred; the local study does not depend on completing them.
+The remaining hosted dependencies are actual OAuth applications and the owner's signed-in account, provider access to verify scheduled maintenance, and approved spend if required. Hosted checks must operate independently of the owner's computer. These gates are still unfulfilled; the local study does not depend on completing them.

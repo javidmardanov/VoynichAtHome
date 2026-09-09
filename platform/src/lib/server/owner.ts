@@ -65,7 +65,11 @@ export async function ownerAction(env:Env,actor:string,payload:unknown) {
         const n=await env.DB.prepare("SELECT COUNT(*) n FROM units u JOIN releases r ON r.id=u.release_id WHERE u.campaign_id=? AND r.state='approved'").bind(action.id).first<{n:number}>();
         if(!n?.n)throw new ApiError(409,'Import approved work before opening this campaign.');
       }
-      await env.DB.prepare('UPDATE campaigns SET status=?,updated_at=? WHERE id=?').bind(action.status,now(),action.id).run();break;
+      result=await env.DB.prepare(`UPDATE campaigns SET status=CASE
+        WHEN EXISTS (SELECT 1 FROM units WHERE campaign_id=campaigns.id)
+          AND NOT EXISTS (SELECT 1 FROM units WHERE campaign_id=campaigns.id AND state<>'complete') THEN 'completed'
+        ELSE ? END,updated_at=? WHERE id=? AND status<>'completed' RETURNING status`).bind(action.status,now(),action.id).first();
+      if(!result)throw new ApiError(409,'Completed campaigns require a new declared continuation.');break;
     }
     case 'moderate':{
       const sql={profile:'UPDATE profiles SET moderated=? WHERE user_id=?',team:'UPDATE teams SET moderated=? WHERE id=?',guest:'UPDATE guests SET blocked=? WHERE id=?'}[action.kind];

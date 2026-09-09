@@ -206,6 +206,57 @@ test('revoked releases and emergency shutdown stop new and resumed assignments',
   await validateUnit(env,w.unit_id,async()=>{throw Error('Must not execute revoked module');});
   expect((await contributions(env.DB,g,null)).credit).toBe(0);
 });
+test('revoked pending work cannot starve scheduled checks for approved work',async()=>{
+  await addUnits(2);
+  const people=await Promise.all(Array.from({length:3},guest));
+  const first=await work(people[0]);await work(people[1]);const next=await work(people[2]);
+  expect(next.unit_id).not.toBe(first.unit_id);
+  await submit(env,people[0],body(first));await submit(env,people[2],body(next));
+  await env.DB.batch([
+    env.DB.prepare("INSERT INTO releases VALUES ('revoked','sha256:old','/kernels/old.wasm','revoked','{}',?)").bind(now()),
+    env.DB.prepare("UPDATE units SET release_id='revoked' WHERE id=?").bind(first.unit_id),
+    env.DB.prepare('UPDATE attempts SET submitted_at=0 WHERE id=?').bind(first.attempt_id)
+  ]);
+  await maintain(env,async()=>output);
+  expect((await contributions(env.DB,people[2],null)).credit).toBe(7);
+  expect((await contributions(env.DB,people[0],null)).credit).toBe(0);
+  expect((await env.DB.prepare('SELECT state FROM attempts WHERE id=?').bind(first.attempt_id).first())?.state).toBe('submitted');
+});
+
+test('paused campaigns finish outstanding work and completed work cannot be reopened',async()=>{
+  await env.DB.prepare("INSERT INTO user (id,name,email,created_at,updated_at) VALUES ('fixture-owner','Owner fixture','owner@example.test',?,?)").bind(Date.now(),Date.now()).run();
+  await addUnits(1);const a=await guest(),b=await guest(),wa=await work(a),wb=await work(b);
+  await ownerAction(env,'fixture-owner',{action:'campaign-state',id:'test',status:'paused'});
+  await submit(env,a,body(wa));await submit(env,b,body(wb));await validateUnit(env,wa.unit_id,async()=>output);
+  expect((await env.DB.prepare('SELECT status FROM campaigns').first())?.status).toBe('completed');
+  expect((await contributions(env.DB,a,null)).credit).toBe(7);
+  expect((await contributions(env.DB,b,null)).credit).toBe(7);
+  await expect(ownerAction(env,'fixture-owner',{action:'campaign-state',id:'test',status:'active'})).rejects.toThrow('Completed campaigns');
+  // Reconcile the paused-but-finished state left by an older coordinator too.
+  await env.DB.prepare("UPDATE campaigns SET status='paused'").run();
+  await ownerAction(env,'fixture-owner',{action:'campaign-state',id:'test',status:'active'});
+  expect((await env.DB.prepare('SELECT status FROM campaigns').first())?.status).toBe('completed');
+});
+
+test.each(['success','failure'])('expired replay %s cannot overwrite a newer completed validation',async(outcome)=>{
+  await addUnits(1);const a=await guest(),b=await guest(),wa=await work(a),wb=await work(b);
+  await submit(env,a,body(wa));await submit(env,b,body(wb));
+  let began!:()=>void,finish!:(result:typeof output)=>void,fail!:(error:Error)=>void;
+  const started=new Promise<void>(resolve=>began=resolve);
+  const delayed=new Promise<typeof output>((resolve,reject)=>{finish=resolve;fail=reject;});
+  const earlier=validateUnit(env,wa.unit_id,async()=>{began();return delayed;});await started;
+  await env.DB.prepare('UPDATE units SET checking_until=0 WHERE id=?').bind(wa.unit_id).run();
+  await validateUnit(env,wa.unit_id,async()=>output);
+  const completed=await env.DB.prepare('SELECT state,trusted_hash,trusted_result,validation_error,validation_runs FROM units WHERE id=?').bind(wa.unit_id).first();
+  expect(completed?.state).toBe('complete');expect(completed?.validation_runs).toBe(2);
+  if(outcome==='success')finish({...output,score:-1});else fail(Error('Late obsolete failure'));
+  await earlier;
+  expect(await env.DB.prepare('SELECT state,trusted_hash,trusted_result,validation_error,validation_runs FROM units WHERE id=?').bind(wa.unit_id).first()).toEqual(completed);
+  expect((await env.DB.prepare('SELECT status FROM campaigns').first())?.status).toBe('completed');
+  expect((await contributions(env.DB,a,null)).credit).toBe(7);
+  expect((await contributions(env.DB,b,null)).credit).toBe(7);
+});
+
 test('guest attachment proves token control and is idempotent across accounts',async()=>{
   await addUnits(1);const g=await guest(),w=await work(g);
   for(const u of ['owner','other'])await env.DB.prepare('INSERT INTO user (id,name,email,created_at,updated_at) VALUES (?,?,?,?,?)').bind(u,u,u+'@example.test',Date.now(),Date.now()).run();
@@ -292,6 +343,18 @@ test('portable backup restores missing research objects and rejects corruption b
   expect(duplicates.every(r=>r.imported)).toBe(true);
   await restore(env,bundle.manifest.database_key);
   expect((await env.DB.prepare('SELECT COUNT(*) n FROM units').first())?.n).toBe(1);
+});
+
+test('maintenance imports accept an 8 MB object and reject larger objects',async()=>{
+  env.ASSIGNMENTS_ENABLED='false';env.DEPLOYMENT_STAGE='maintenance';
+  await env.DB.prepare('UPDATE controls SET stopped=1').run();
+  const value={padding:'x'.repeat(8000000-14)};
+  expect(new TextEncoder().encode(JSON.stringify(value)).length).toBe(8000000);
+  const digest=await identity(value),key='shared/'+digest.slice(7)+'.json';
+  expect(await importBackupObject(env,{key,digest,value})).toEqual({imported:true,duplicate:false});
+  const stored=await env.RESEARCH.get(key);expect(stored?.size).toBe(8000000);await stored?.body.cancel();
+  const oversized={padding:value.padding+'x'},oversizedDigest=await identity(oversized);
+  await expect(importBackupObject(env,{key:'shared/'+oversizedDigest.slice(7)+'.json',digest:oversizedDigest,value:oversized})).rejects.toThrow('Backup bytes differ');
 });
 
 test('unfinished validation reserves carry across months once, and every replay retry is funded',async()=>{
