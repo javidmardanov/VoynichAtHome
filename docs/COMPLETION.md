@@ -1,6 +1,6 @@
 # Completion ledger — updated 9 September 2026 UTC
 
-The owner renewed the build, test, verification, and deployment request on 9 September UTC, following the 7 September website deferral. Private version 8 is deployed from source `cbbaf5f136d281e70646f2b4ccc8d946401435a3` alongside the unchanged frozen recovery study. Sites sign-in is enabled and its normal browser flow reaches OpenAI's login page; actual authentication, owner binding, hosted operational acceptance, the public pilot, and final research publication remain pending. This is not a completed public release or a decipherment. [Version 8 evidence](evidence/private-preview-2026-09-09-auth.json) includes local checks, complete CI, and live HTTP verification.
+The owner renewed the build, test, verification, and deployment request on 9 September UTC, following the 7 September website deferral. Private version 9 is deployed from source `1d3462f5c775a1e465cc91210297483d829c5de8` alongside the unchanged frozen recovery study. Sites sign-in is enabled and its normal browser flow reaches OpenAI's login page; actual authentication, owner binding, hosted operational acceptance, the public pilot, and final research publication remain pending. This is not a completed public release or a decipherment. [Version 9 evidence](evidence/private-preview-2026-09-09-copy.json) records the complete website-copy review, passing CI and browser checks, and live verification.
 
 ## Preserved research
 

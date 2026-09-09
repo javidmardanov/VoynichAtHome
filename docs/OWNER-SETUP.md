@@ -1,6 +1,6 @@
 # Account and hosting setup for release acceptance
 
-The owner renewed deployment work on 9 September 2026 UTC after the 7 September deferral. Private version 8 is deployed with Sites sign-in enabled. The normal browser flow reaches OpenAI's login page; user authentication, owner binding, and hosted scheduling remain pending. See [the evidence](evidence/private-preview-2026-09-09-auth.json) and [completion ledger](COMPLETION.md).
+The owner renewed deployment work on 9 September 2026 UTC after the 7 September deferral. Private version 9 is deployed with Sites sign-in enabled. The normal browser flow reaches OpenAI's login page; user authentication, owner binding, and hosted scheduling remain pending. See [the evidence](evidence/private-preview-2026-09-09-copy.json) and [completion ledger](COMPLETION.md).
 
 Assignments remain disabled. Configure these values through the existing Site's
 runtime settings, never in Git, a public issue, or chat. Do not replace an existing

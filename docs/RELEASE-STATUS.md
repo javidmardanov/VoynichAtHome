@@ -2,7 +2,13 @@
 
 Status: development, with an owner-only [hosted preview](https://voynich-at-home.jenobi.chatgpt.site). Assignments are disabled. No public research release or production readiness is claimed.
 
-The owner renewed the build, test, verification, and deployment request on 9 September UTC, following the 7 September website deferral. Private version 8 is deployed at source `cbbaf5f136d281e70646f2b4ccc8d946401435a3`. Public campaign launch remains gated on scientific and hosted acceptance. The frozen local study and reproducibility tooling continue; see the [completion ledger](COMPLETION.md).
+The owner renewed the build, test, verification, and deployment request on 9 September UTC, following the 7 September website deferral. Private version 9 is deployed at source `1d3462f5c775a1e465cc91210297483d829c5de8`. Public campaign launch remains gated on scientific and hosted acceptance. The frozen local study and reproducibility tooling continue; see the [completion ledger](COMPLETION.md).
+
+## Website copy review and deployment
+
+The [version 9 record](evidence/private-preview-2026-09-09-copy.json) covers all 14 page routes, shared navigation, browser-worker messages, and selected server errors. Sol edited the copy using Stop Slop and Impeccable; Terra reviewed factual claims and selectors, Luna checked links and CI artifacts, and the root agent reviewed and revised the combined work. Scientific figures, consent, privacy facts, and study limits remain intact.
+
+The production source passed 46 local platform tests, source checks, and distribution builds. Final browser checks passed 31 cases across three engines with eight planned skips. All six CI runs passed at the deployed source; both CI load runs credited 25 computing clients while five waited. Live verification passed 20 HTTP checks and eight invariants, including revised copy on every public page. The record retains an early fixture-initialization collision and a stale test selector that was corrected before the final pass. The final test-only commit changed no production build inputs, so the verified application build was reused. This evidence does not establish hosted computing load or completion of the remaining launch gates.
 
 ## Private account and maintenance integration
 
