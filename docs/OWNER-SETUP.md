@@ -1,6 +1,6 @@
 # Account and hosting setup for release acceptance
 
-Deferred by the owner on 7 September 2026. These are future setup instructions, not a request to configure accounts now. See [the completion ledger](COMPLETION.md).
+The owner renewed deployment work on 9 September 2026 UTC after the 7 September deferral. Private version 7 is deployed. Account selection and provider access are still needed to complete these setup steps; see [the completion ledger](COMPLETION.md).
 
 Assignments remain disabled. Configure these values through the existing Site's
 runtime settings, never in Git, a public issue, or chat. Do not replace an existing

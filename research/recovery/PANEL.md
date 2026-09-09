@@ -61,4 +61,20 @@ python research/recovery/bundle.py verify NEW_ARCHIVE_DIRECTORY/evaluation-v1.zi
 
 The archive also checks the checksum of each successful replay's actual audit file and binds supplemental attempt bytes to their replay report. A previously passing report cannot certify a subsequently changed original result, supplemental attempt, or replay audit.
 
+## Recovery and additional-start analysis
+
+After the full report is ready, derive its recovery counts and incremental compute costs without reading worker inputs or answers:
+
+```sh
+python research/recovery/summarize.py FINAL_REPORT.json --out NEW_ANALYSIS.json
+```
+
+The command accepts report versions 1 and 2, binds the exact source-report bytes with SHA-256, and refuses to overwrite an existing output. It checks the registered condition matrix, execution counts, deterministic beam views, and nested-prefix consistency. It preserves the source report. The archive builder automatically includes this analysis as `reports/evaluation-analysis.json` and checks that the underlying report has not changed.
+
+Each language/family/length condition retains its planned cases, preparation failures, observed exact/wrong/unavailable outputs, missing searches, and operational failures. Full-budget recovery requires every expected start to succeed; a partial-budget best output remains an observation. Paired 1-to-8 and 8-to-64 comparisons count both gains and regressions for the same cases. Deterministic beam views count once. Whole-study resource totals use the largest annealing prefix once.
+
+Added resource totals include every prepared pair, including those excluded from recovery comparisons. Shared-prefix timing and unknown-measurement counts are subtracted separately, so a known added suffix can remain measured after an earlier interruption. Unrecorded added searches make the total added cost unknown. Successful evaluation counts exclude work lost to aborted executions. They are not provider CPU measurements. Matched score comparisons require fully successful message and both control budgets; unavailable controls do not count as beaten controls. Even a wrong reading can score above both controls.
+
+These summaries describe the registered source works and encodings. Overlapping passages do not create independent source works, and aggregate development counts do not establish a manuscript operating range. The preserved evaluation remains unchanged; do not derive or inspect its partial recovery results while it is running.
+
 Original text ciphertexts and retained worker `incidents/` evidence are included. Interruption evidence referenced by original failure records must match its recorded checksum; missing or changed evidence blocks packaging.

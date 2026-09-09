@@ -17,6 +17,7 @@ import zipfile
 import rfc8785
 
 from panel import ROOT, digest, file_digest, load
+from summarize import summarize
 
 
 def validate_ready(manifest, report, replay):
@@ -106,8 +107,11 @@ def build_bundle(args):
     for source in (worker, audit, retries, args.custodian.resolve(), args.sources.resolve()):
         if destination == source or source in destination.parents or destination in source.parents:
             raise ValueError('Keep the archive destination separate from its inputs')
-    manifest, report, replay = load(worker / 'manifest.json'), load(args.report), load(audit / 'replay-report.json')
+    report_bytes = args.report.read_bytes()
+    manifest, report, replay = load(worker / 'manifest.json'), json.loads(report_bytes), load(audit / 'replay-report.json')
     validate_ready(manifest, report, replay)
+    analysis = summarize(report)
+    analysis['source_report_digest'] = 'sha256:' + hashlib.sha256(report_bytes).hexdigest()
     preparation = load(ROOT / 'research/recovery/evaluation-v1.preparation.json')
     freeze = load(ROOT / 'research/recovery/evaluation-v1.freeze.json')
     if (file_digest(worker / 'manifest.json') != 'sha256:' + preparation['worker_manifest_sha256']
@@ -145,6 +149,9 @@ def build_bundle(args):
 
     destination.mkdir(parents=True, exist_ok=False)
     with tempfile.TemporaryDirectory(dir=destination) as scratch:
+        analysis_path = Path(scratch) / 'evaluation-analysis.json'
+        analysis_path.write_text(json.dumps(analysis, indent=2, allow_nan=False) + '\n', encoding='utf-8')
+        add(analysis_path, 'reports/evaluation-analysis.json')
         frozen_source = Path(scratch) / 'frozen-source.tar'
         subprocess.run(['git', 'archive', '--format=tar', '--output', str(frozen_source), preparation['freeze_commit']], cwd=ROOT, check=True)
         add(frozen_source, 'provenance/frozen-source.tar')
@@ -154,6 +161,8 @@ def build_bundle(args):
         with zipfile.ZipFile(archive_path, 'x', compression=zipfile.ZIP_DEFLATED, compresslevel=3, allowZip64=True) as archive:
             for index, (name, source) in enumerate(sorted(sources.items()), 1):
                 before = file_digest(source)
+                if name == 'reports/evaluation.json' and before != analysis['source_report_digest']:
+                    raise ValueError('Report changed after deriving its recovery analysis')
                 size = source.stat().st_size
                 archive.write(source, name)
                 if file_digest(source) != before:

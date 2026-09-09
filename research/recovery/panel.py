@@ -461,11 +461,12 @@ def evaluate_panel(args):
     # Matched controls use the same number of starts and fixed per-start budget.
     comparison_index = {(r['id'], r['control'], r['algorithm'], r['budget_starts']): r for r in summaries}
     for row in summaries:
-        if row['control'] != 'message' or row['score'] is None:
+        if row['control'] != 'message':
             continue
         controls = [comparison_index[(row['id'], control, row['algorithm'], row['budget_starts'])]
                     for control in manifest['spec']['controls'] if control != 'message']
-        row['controls_scoring_at_least_as_high'] = sum(c['score'] is not None and c['score'] >= row['score'] for c in controls)
+        comparable = all(r['complete_starts'] == r['expected_starts'] and r['score'] is not None for r in [row, *controls])
+        row['controls_scoring_at_least_as_high'] = sum(c['score'] >= row['score'] for c in controls) if comparable else None
     expected = len(manifest['cases']) * (1 + max(manifest['spec']['starts']))
     report = {'version': 'vah-recovery-report-2', 'spec': manifest['spec'], 'spec_digest': manifest['spec_digest'],
               'answers_commitment': manifest['answers_commitment'], 'kernel_digest': manifest['kernel_digest'],

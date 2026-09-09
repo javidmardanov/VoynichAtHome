@@ -77,7 +77,8 @@ def test_archive_readback_rejects_changed_bytes_and_unsafe_members(tmp_path):
         bundle.verify_archive(archive('unsafe.zip', content, True))
 
 
-def test_complete_bundle_includes_original_text_and_interruption_evidence(tmp_path, monkeypatch):
+@pytest.mark.parametrize('change_report', [False, True])
+def test_complete_bundle_includes_original_text_and_interruption_evidence(tmp_path, monkeypatch, change_report):
     from types import SimpleNamespace
     from panel import save
     root, worker, custodian, audit, retries, sources = [tmp_path / name for name in
@@ -111,18 +112,32 @@ def test_complete_bundle_includes_original_text_and_interruption_evidence(tmp_pa
         'unrecorded_searches': 0, 'successful_executions': 0, 'operational_failures': 2},
         'operational_failures': [{'interruption': {'evidence': [evidence]}}]}
     report_path = tmp_path / 'report.json'; save(report_path, report)
+    # Summary calculation is checked against real reports in test_recovery_summary.
+    # This fixture isolates archive membership and binding to exact report bytes.
+    monkeypatch.setattr(bundle, 'summarize', lambda actual: {'fixture_analysis': actual['coverage']})
     save(audit / 'replay-report.json', {**binding, 'all_recorded_successes_reproduced': True,
         'records': [{'run': name, 'status': 'original-operational-failure'} for name in ('first.json', 'second.json')],
         'supplemental': {'all_outputs_reproduced': True, 'records_digest': 'sha256:' + retry_ledger.hexdigest(),
             'records': [{'run': name, 'status': 'supplemental-operational-failure'} for name in ('first.json', 'second.json')]}})
     def archive_source(command, **_):
         Path(command[command.index('--output') + 1]).write_bytes(b'fixture source archive')
+        if change_report:
+            report_path.write_text('{}')
     monkeypatch.setattr(bundle.subprocess, 'run', archive_source)
     monkeypatch.setattr(bundle.subprocess, 'check_output', lambda *_args, **_kwargs: 'fixture\n')
     out = tmp_path / 'complete'
-    bundle.build_bundle(SimpleNamespace(worker=worker, custodian=custodian, audit=audit, retries=retries,
-        sources=sources, binary=binary, report=report_path, out=out))
+    args = SimpleNamespace(worker=worker, custodian=custodian, audit=audit, retries=retries,
+        sources=sources, binary=binary, report=report_path, out=out)
+    if change_report:
+        with pytest.raises(ValueError, match='Report changed'):
+            bundle.build_bundle(args)
+        assert not (out / 'verification.json').exists()
+        return
+    bundle.build_bundle(args)
     assert (out / 'verification.json').exists()
     with zipfile.ZipFile(out / 'evaluation-v1.zip') as archive:
         assert archive.read('worker/ciphertexts/original.txt') == b'original spaced ciphertext'
         assert archive.read('worker/incidents/stopped/native-stderr.txt') == b'interruption evidence'
+        analysis = json.loads(archive.read('reports/evaluation-analysis.json'))
+        assert analysis['source_report_digest'] == bundle.file_digest(report_path)
+        assert analysis['fixture_analysis'] == report['coverage']

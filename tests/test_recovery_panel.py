@@ -119,6 +119,8 @@ def test_evaluation_separates_terminal_coverage_from_operational_success(tmp_pat
     report = panel.load(out)
     assert report['complete'] and not report['all_searches_succeeded_operationally']
     assert report['coverage'] == {'expected_searches': 6, 'recorded_searches': 6, 'successful_executions': 5, 'operational_failures': 1, 'unrecorded_searches': 0}
+    message = next(r for r in report['conditions'] if r['control'] == 'message' and r['algorithm'] == 'beam-v1')
+    assert message['controls_scoring_at_least_as_high'] is None  # A failed control cannot certify score separation.
     if interrupted:
         failure = report['operational_failures'][0]
         assert failure['exit_code'] is None and failure['interruption']['classification'] == 'runner-interruption'
@@ -128,7 +130,10 @@ def test_evaluation_separates_terminal_coverage_from_operational_success(tmp_pat
         assert condition['peak_sampled_rss_bytes'] is None and condition['unmeasured_memory_starts'] == 1
     jobs[-1][2].unlink()
     panel.evaluate_panel(SimpleNamespace(worker=worker, custodian=custodian, out=out))
-    assert not panel.load(out)['complete']
+    partial = panel.load(out)
+    assert not partial['complete']
+    message = next(r for r in partial['conditions'] if r['control'] == 'message' and r['algorithm'] == 'restart-anneal-v1')
+    assert message['controls_scoring_at_least_as_high'] is None
 
 
 def test_replay_retains_operational_failures_and_rejects_changed_audit_inputs(tmp_path, monkeypatch):
