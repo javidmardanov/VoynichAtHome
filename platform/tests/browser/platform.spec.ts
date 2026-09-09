@@ -193,7 +193,7 @@ test('profiles, guest attachment, teams, session revocation, and deletion work t
   await page.getByRole('button',{name:'Leave team',exact:true}).click();await expect(page.getByRole('status')).toHaveText('You left the team.');
   await page.getByRole('button',{name:'Sign out other devices'}).click();await expect(page.getByRole('status')).toHaveText('Other devices have been signed out.');
   await expect(page.getByRole('button',{name:'Sign out session',exact:true})).toHaveCount(1);
-  await page.getByLabel('I want to permanently delete my account.').check();await page.getByRole('button',{name:'Delete my account',exact:true}).click();await expect(page).toHaveURL('http://127.0.0.1:8899/');
+  await page.getByLabel('Permanently delete my account').check();await page.getByRole('button',{name:'Delete my account',exact:true}).click();await expect(page).toHaveURL('http://127.0.0.1:8899/');
   community=await (await page.request.get('/api/v1/community')).json();expect(community.people.some((p:any)=>p.display_name==='Participant '+info.project.name)).toBe(false);expect(community.teams.some((t:any)=>t.name==='Team '+info.project.name)).toBe(false);
   expect((await (await page.request.get('/api/v1/me')).json()).guest).toBe(false);
 });
