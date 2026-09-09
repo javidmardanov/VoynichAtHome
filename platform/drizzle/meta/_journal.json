@@ -50,6 +50,13 @@
       "when": 1788769306746,
       "tag": "0006_volatile_hiroim",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1788924752199,
+      "tag": "0007_fine_bloodscream",
+      "breakpoints": true
     }
   ]
 }

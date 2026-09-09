@@ -25,6 +25,7 @@
     "better-auth": "1.7.2",
     "@better-auth/drizzle-adapter": "1.7.2",
     "drizzle-orm": "0.45.2",
+    "jose": "6.2.12",
     "zod": "^4.3.6"
   },
   "devDependencies": {

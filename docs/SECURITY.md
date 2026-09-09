@@ -24,7 +24,7 @@ Six unsuccessful deliveries require owner review before extending by two, up to 
 
 ## Accounts and privacy
 
-Better Auth handles optional Google/GitHub sign-in, signed sessions, revocation, and deletion. Unconfigured providers are hidden. Email/password sign-in and automatic provider-account linking are disabled. OAuth tokens are encrypted at rest by the library. Owner access requires the configured authenticated user ID.
+Better Auth handles optional Google/GitHub sign-in and an explicit Sites-authenticated ChatGPT sign-in bridge, signed sessions, revocation, and deletion. The bridge requires the enabled flag, exact trusted HTTPS Sites origin, same-origin POST, and dispatcher-authenticated subject plus email. It binds the opaque subject atomically and never adopts an email-matched account. Normal page visits do not recreate revoked sessions. Unconfigured providers are hidden. Email/password sign-in and automatic provider-account linking are disabled. OAuth tokens are encrypted at rest by the library. Owner access requires the configured authenticated user ID.
 
 Guest proofs are random, stored as hashes in D1, and expire after 90 days. Browser cookies are HttpOnly and SameSite=Lax, and Secure on HTTPS. Guest attachment proves current token control and updates a reference; it never copies credit. Public profiles require explicit opt-in. Names are validated and escaped. Emails, authentication credentials, and private guest identifiers are not public ranking fields.
 
@@ -33,6 +33,8 @@ Deletion revokes attached guest proofs, removes the account and public profile, 
 ## Recovery and incident handling
 
 The bounded database restore checks schema and digests, restores atomically, reapplies deletion tombstones, revokes sessions and guest proofs, expires old leases, and leaves assignments stopped. R2 inputs and deletion tombstones must accompany the database snapshot in the recovery procedure. Large databases require provider export/restore. A database snapshot by itself is not a complete disaster-recovery package.
+
+Shared guards admit concurrent HTTP requests and detached result checks; exclusive guards isolate owner mutations and scheduled maintenance. Unknown active guards require verified termination before recovery. Settled request guards are removed; signed scheduler invocation history survives an in-place application restore. The optional GitHub scheduler uses only the fixed issuer/JWKS, exact repository/owner/subject/workflow/commit claims, an endpoint-specific audience, short-lived RS256 tokens, and durable duplicate rejection. Redirects cannot forward its bearer credentials. Manual dispatches and reruns do not establish autonomous scheduled health. The [owner guide](OWNER-SETUP.md) describes full-database replacement and workflow-pin updates.
 
 For an incident: stop new assignments, pause affected campaigns or revoke the release, preserve relevant records, rotate compromised credentials, restore or roll back in maintenance mode, reproduce a bounded known result, and record remediation before owner-authorized reopening. Do not relabel interrupted work as scientific failure.
 

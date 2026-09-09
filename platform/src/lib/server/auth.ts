@@ -2,11 +2,13 @@ import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from '@better-auth/drizzle-adapter';
 import { drizzle } from 'drizzle-orm/d1';
 import * as schema from '../../../db/schema';
+import { sitesChatGPT, sitesAuthEnabled } from './sites-auth';
 
 export function configuredProviders(env: Env) {
   if(!env.AUTH_BASE_URL||!env.AUTH_SECRET||env.AUTH_SECRET.length<32)return [];
   return [env.GITHUB_CLIENT_ID && env.GITHUB_CLIENT_SECRET ? 'github' : null,
-    env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET ? 'google' : null].filter((v): v is 'github' | 'google' => !!v);
+    env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET ? 'google' : null,
+    sitesAuthEnabled(env)?'sites-chatgpt':null].filter((v): v is 'github' | 'google' | 'sites-chatgpt' => !!v);
 }
 export function createAuth(env: Env) {
   if (!env.AUTH_SECRET || env.AUTH_SECRET.length < 32 || !env.AUTH_BASE_URL) return null;
@@ -18,6 +20,7 @@ export function createAuth(env: Env) {
     appName: 'Voynich@home', baseURL: env.AUTH_BASE_URL, secret: env.AUTH_SECRET,
     database: drizzleAdapter(drizzle(env.DB, { schema }), { provider: 'sqlite', schema, transaction: false }),
     socialProviders,
+    plugins:[sitesChatGPT(env)],
     advanced: { ipAddress: { ipAddressHeaders: ['cf-connecting-ip'] } },
     emailAndPassword: { enabled: false },
     account: { accountLinking: { enabled: false }, encryptOAuthTokens: true },

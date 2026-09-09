@@ -63,6 +63,14 @@ test('browser verification also reproduces generation and verification work',asy
 
 test('owner access fails closed, then a real signed session can use controls',async({page,context},info)=>{
   expect((await page.goto('/owner'))?.status()).toBe(403);
+  const origin='http://127.0.0.1:8899';
+  const probes=await Promise.all(Array.from({length:8},async()=>{
+    const [denied,available]=await Promise.all([
+      context.request.post('/api/v1/owner',{headers:{origin,cookie:'better-auth.session_token=invalid'},data:{action:'backup'}}),
+      context.request.get('/api/v1/status')
+    ]);return [denied.status(),available.status()];
+  }));
+  expect(probes).toEqual(Array.from({length:8},()=>[403,200]));
   const cookie=JSON.parse(await readFile('test-results/owner-cookie.json','utf8'));await context.addCookies([cookie]);
   const response=await page.goto('/owner');await expect(page.getByRole('heading',{name:'Project operations'})).toBeVisible();
   const headers=await response!.allHeaders();expect(headers['cache-control']).toBe('no-store');

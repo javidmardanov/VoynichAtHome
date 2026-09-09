@@ -1,10 +1,10 @@
 /** Operational evidence is separate from scientific result identities. */
 export const MAINTENANCE_MAX_AGE_SECONDS = 20 * 60;
-export type OperationName = 'scheduled-maintenance' | 'backup';
+export type OperationName = 'scheduled-maintenance' | 'maintenance-rehearsal' | 'backup';
 type HealthRow = {name:string;run_id:string;last_started_at:number;last_success_at:number|null;last_failure_at:number|null;last_error:string|null};
 
-export async function recordOperation<T>(env:Env,name:OperationName,run:()=>Promise<T>):Promise<T>{
-  const started=Math.floor(Date.now()/1000),runId=crypto.randomUUID();
+export async function recordOperation<T>(env:Env,name:OperationName,run:()=>Promise<T>,runId:string=crypto.randomUUID()):Promise<T>{
+  const started=Math.floor(Date.now()/1000);
   await env.DB.prepare(`INSERT INTO operation_health (name,run_id,last_started_at) VALUES (?,?,?)
     ON CONFLICT(name) DO UPDATE SET run_id=excluded.run_id,last_started_at=excluded.last_started_at`)
     .bind(name,runId,started).run();

@@ -10,6 +10,7 @@ declare global {
     AUTH_SECRET?: string; AUTH_BASE_URL?: string;
     GITHUB_CLIENT_ID?: string; GITHUB_CLIENT_SECRET?: string;
     GOOGLE_CLIENT_ID?: string; GOOGLE_CLIENT_SECRET?: string;
+    SITES_AUTH_ENABLED?: string; GITHUB_MAINTENANCE_IDENTITY?: string;
     OWNER_USER_ID?: string; DEPLOYMENT_STAGE?: string; ASSIGNMENTS_ENABLED?: string;
   }
 }

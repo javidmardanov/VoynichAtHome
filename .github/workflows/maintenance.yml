@@ -1,0 +1,42 @@
+name: Hosted maintenance
+on:
+  schedule:
+    - cron: '2-59/5 * * * *'
+  workflow_dispatch:
+permissions:
+  id-token: write
+concurrency:
+  group: hosted-maintenance
+  cancel-in-progress: false
+jobs:
+  maintain:
+    if: vars.VAH_MAINTENANCE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Authenticate and await maintenance
+        env:
+          MAINTENANCE_ENDPOINT: https://voynich-at-home.jenobi.chatgpt.site/api/maintenance/github
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.parse, urllib.request, urllib.error
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  return None
+          http = urllib.request.build_opener(NoRedirect())
+          endpoint = os.environ['MAINTENANCE_ENDPOINT']
+          token_url = os.environ['ACTIONS_ID_TOKEN_REQUEST_URL'] + '&audience=' + urllib.parse.quote(endpoint, safe='')
+          request = urllib.request.Request(token_url, headers={'Authorization': 'Bearer ' + os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']})
+          with http.open(request, timeout=30) as response:
+              token = json.load(response)['value']
+          request = urllib.request.Request(endpoint, data=b'', method='POST', headers={'Authorization': 'Bearer ' + token})
+          try:
+              with http.open(request, timeout=480) as response:
+                  result = json.load(response)
+          except urllib.error.HTTPError as error:
+              raise SystemExit('Maintenance endpoint returned HTTP ' + str(error.code)) from None
+          if result.get('completed') is not True:
+              raise SystemExit('Maintenance did not return a completed outcome')
+          print(json.dumps(result))
+          PY

@@ -8,6 +8,7 @@ import { ownerAction } from '$lib/server/owner';
 import { trustedRun } from '$lib/server/runner';
 import { sha256 } from '$lib/contracts';
 import { portableObject } from '$lib/server/backup';
+import { withMaintenanceRun,ownerInvocation,unscopedEnv } from '$lib/server/maintenance-guard';
 async function body(request:Request,maxBytes=8000000) {
   if(!request.headers.get('content-type')?.startsWith('application/json'))throw new ApiError(415,'Use application/json.');
   const reader=request.body?.getReader();if(!reader)throw new ApiError(400,'A JSON body is required.');
@@ -49,7 +50,9 @@ const handler:RequestHandler=async(event)=>{
     if(path==='results'&&request.method==='POST'){
       if(!guest)throw new ApiError(401,'Guest session required.');
       const receipt=await submit(env,guest,await body(request));
-      platform.context.waitUntil(validateUnit(env,receipt.unit_id,(input,releaseId)=>trustedRun(env,input,releaseId)));
+      const background=unscopedEnv(env);
+      platform.context.waitUntil(withMaintenanceRun(background,ownerInvocation('submission-check'),()=>validateUnit(background,receipt.unit_id,(input,releaseId)=>trustedRun(background,input,releaseId)),'shared')
+        .catch(error=>{if(!(error instanceof ApiError&&error.status===409))throw error;})); // Busy checks remain submitted for the scheduled runner.
       return json(receipt, {status:202});
     }
     if(path==='claim'&&request.method==='POST'){if(!guest||!locals.user)throw new ApiError(401,'Sign in from the guest browser you want to attach.');return json(await claimGuest(env.DB,guest,locals.user.id));}
@@ -57,7 +60,7 @@ const handler:RequestHandler=async(event)=>{
     if(path==='team'&&request.method==='POST'){if(!locals.user)throw new ApiError(401,'Sign in to join a team.');return json(await changeTeam(env,locals.user.id,await body(request)));}
     if(path==='owner'&&request.method==='POST'){if(!locals.owner||!locals.user)throw new ApiError(403,'Owner access required.');return json(await ownerAction(env,locals.user.id,await body(request,8001024)));} // Allow the envelope around an 8 MB backup object.
     if(path.startsWith('owner/backup/')&&!mutating){if(!locals.owner)throw new ApiError(403,'Owner access required.');return portableObject(env,path.slice('owner/backup/'.length),url.searchParams.get('key')??'');}
-    if(path==='owner/validate'&&request.method==='POST'){if(!locals.owner)throw new ApiError(403,'Owner access required.');platform.context.waitUntil(maintain(env,(input,releaseId)=>trustedRun(env,input,releaseId)));return json({queued:true});}
+    if(path==='owner/validate'&&request.method==='POST'){if(!locals.owner)throw new ApiError(403,'Owner access required.');await withMaintenanceRun(env,ownerInvocation('owner-check'),()=>maintain(env,(input,releaseId)=>trustedRun(env,input,releaseId)));return json({completed:true});}
     if(path==='owner'&&!mutating){if(!locals.owner)throw new ApiError(403,'Owner access required.');
       const [campaigns,releases,errors,audit]=await Promise.all([
         env.DB.prepare('SELECT * FROM campaigns ORDER BY created_at DESC LIMIT 50').all(),env.DB.prepare('SELECT * FROM releases ORDER BY created_at DESC LIMIT 20').all(),

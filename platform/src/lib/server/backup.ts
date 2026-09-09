@@ -3,6 +3,7 @@ import { identity, sha256, Digest, StoredInput } from '../contracts';
 import { z } from 'zod';
 import {loadInput,sharedKey} from './inputs';
 import {recordOperation} from './health';
+import {withMaintenanceRun,ownerInvocation} from './maintenance-guard';
 // Foreign-key order. A backup never accepts table or column names from a caller.
 const tables=['user','account','session','verification','rate_limit','guests','profiles','teams','membership','campaigns','releases','reports','shared_objects','units','attempts','credit','limits','controls','operation_health','audit'] as const;
 const Snapshot=z.object({version:z.literal('vah-backup-1'),created_at:z.number().int(),schema:z.record(z.string(),z.array(z.string())),tables:z.record(z.string(),z.array(z.record(z.string(),z.union([z.string(),z.number(),z.null()]))))}).strict();
@@ -11,7 +12,7 @@ export const PortableBackup=z.object({version:z.literal('vah-portable-backup-1')
   objects:z.array(z.object({key:PortableKey,digest:Digest,size:z.number().int().min(1).max(16000000)}).strict()).min(1).max(10000)}).strict();
 async function columns(env:Env){const result:Record<string,string[]>={};for(const table of tables){const info=await env.DB.prepare(`PRAGMA table_info("${table}")`).all<{name:string}>();result[table]=info.results.map(c=>c.name);}return result;}
 export async function backup(env:Env){
-  return recordOperation(env,'backup',()=>writeBackup(env));
+  return withMaintenanceRun(env,ownerInvocation('owner-backup'),()=>recordOperation(env,'backup',()=>writeBackup(env)));
 }
 async function writeBackup(env:Env){
   const schema=await columns(env);
@@ -25,6 +26,9 @@ async function writeBackup(env:Env){
   return {key,digest,rows:counts.reduce((n,r)=>n+Number(r.results[0]?.n??0),0)};
 }
 export async function restore(env:Env,key:string){
+  return withMaintenanceRun(env,ownerInvocation('restore'),()=>restoreSnapshot(env,key));
+}
+async function restoreSnapshot(env:Env,key:string){
   if(!['development','staging','maintenance'].includes(env.DEPLOYMENT_STAGE??''))throw new ApiError(409,'Switch to maintenance stage and disable assignments before restoring production data.');
   if(env.ASSIGNMENTS_ENABLED==='true')throw new ApiError(409,'Disable the environment assignment switch before restoration.');
   const control=await env.DB.prepare("SELECT stopped FROM controls WHERE id='main'").first<{stopped:number}>();
@@ -74,7 +78,10 @@ export async function restore(env:Env,key:string){
 
 /** Inventory exact snapshot dependencies for a private, off-provider copy. */
 export async function portableBackup(env:Env){
-  const saved=await backup(env),object=await env.RESEARCH.get(saved.key);
+  return withMaintenanceRun(env,ownerInvocation('owner-portable-backup'),()=>writePortableBackup(env));
+}
+async function writePortableBackup(env:Env){
+  const saved=await recordOperation(env,'backup',()=>writeBackup(env)),object=await env.RESEARCH.get(saved.key);
   if(!object)throw new ApiError(503,'Backup object unavailable.');
   const snapshot=Snapshot.parse(JSON.parse(await object.text()));
   const keys=new Set<string>([saved.key,...snapshot.tables.units.filter(row=>row.state!=='importing').map(row=>String(row.input_key)),...snapshot.tables.shared_objects.filter(row=>row.state==='ready').map(row=>sharedKey(String(row.digest)))]);
@@ -135,14 +142,20 @@ async function maintainBackups(env:Env){
     env.DB.prepare('UPDATE guests SET token_hash=NULL WHERE expires_at<? AND token_hash IS NOT NULL').bind(now())
   ]);
   const prefix='backups/'+new Date().toISOString().slice(0,10);
-  const existing=(await env.RESEARCH.list({prefix,limit:1})).objects[0];
-  if(!existing)await writeBackup(env);
-  else{
-    const object=await env.RESEARCH.get(existing.key);
-    if(!object||object.size>16000000)throw new ApiError(503,'Today’s backup is missing or exceeds its verified bound.');
-    const snapshot=Snapshot.parse(JSON.parse(await object.text()));
-    if(await identity(snapshot)!==object.customMetadata?.digest)throw new ApiError(503,'Today’s backup failed integrity verification.');
-  }
+  const currentSchema=await identity(await columns(env));
+  let compatible=false,todayCursor:string|undefined;
+  do{
+    const page=await env.RESEARCH.list({prefix,limit:100,cursor:todayCursor});
+    for(const item of page.objects){
+      const object=await env.RESEARCH.get(item.key);
+      if(!object||object.size>16000000)throw new ApiError(503,'Today’s backup is missing or exceeds its verified bound.');
+      const snapshot=Snapshot.parse(JSON.parse(await object.text()));
+      if(await identity(snapshot)!==object.customMetadata?.digest)throw new ApiError(503,'Today’s backup failed integrity verification.');
+      if(await identity(snapshot.schema)===currentSchema&&Object.keys(snapshot.tables).sort().join()===[...tables].sort().join())compatible=true;
+    }
+    todayCursor=page.truncated?page.cursor:undefined;
+  }while(todayCursor);
+  if(!compatible)await writeBackup(env);
   // Explicit 30-day retention. Deletion tombstones are kept separately.
   let cursor:string|undefined;
   do{const page=await env.RESEARCH.list({prefix:'backups/',limit:100,cursor});

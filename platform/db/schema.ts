@@ -1,4 +1,5 @@
 import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
 
 // Better Auth's standard SQLite models. Application data references user IDs,
 // never provider access tokens. Tokens are not exposed by our profile APIs.
@@ -13,11 +14,11 @@ export const session = sqliteTable('session', {
   ipAddress: text('ip_address'), userAgent: text('user_agent'), userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' })
 }, t => [index('session_user_idx').on(t.userId)]);
 export const account = sqliteTable('account', {
-  id: text('id').primaryKey(), accountId: text('account_id').notNull(), providerId: text('provider_id').notNull(),
+  id: text('id').primaryKey(), accountId: text('account_id').notNull(), providerId: text('provider_id').notNull(), issuer: text('issuer').notNull().default(''),
   userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }), accessToken: text('access_token'), refreshToken: text('refresh_token'), idToken: text('id_token'),
   accessTokenExpiresAt: integer('access_token_expires_at', { mode: 'timestamp_ms' }), refreshTokenExpiresAt: integer('refresh_token_expires_at', { mode: 'timestamp_ms' }), scope: text('scope'), password: text('password'),
   createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(), updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
-}, t => [index('account_user_idx').on(t.userId), uniqueIndex('account_provider_idx').on(t.providerId, t.accountId)]);
+}, t => [index('account_user_idx').on(t.userId), uniqueIndex('account_issuer_idx').on(t.issuer, t.accountId)]);
 export const verification = sqliteTable('verification', {
   id: text('id').primaryKey(), identifier: text('identifier').notNull(), value: text('value').notNull(),
   expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(), createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(), updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull()
@@ -84,6 +85,12 @@ export const operationHealth = sqliteTable('operation_health', {
   name:text('name').primaryKey(),runId:text('run_id').notNull(),lastStartedAt:integer('last_started_at').notNull(),
   lastSuccessAt:integer('last_success_at'),lastFailureAt:integer('last_failure_at'),lastError:text('last_error')
 });
+// Live execution guards deliberately survive an in-place snapshot restoration.
+export const maintenanceRuns = sqliteTable('maintenance_runs', {
+  id:text('id').primaryKey(),source:text('source').notNull(),identity:text('identity').notNull(),
+  mode:text('mode').notNull().default('exclusive'),state:text('state').notNull(),startedAt:integer('started_at').notNull(),finishedAt:integer('finished_at'),error:text('error')
+},t=>[uniqueIndex('maintenance_one_running').on(t.state).where(sql`${t.state} = 'running' AND ${t.mode} = 'exclusive'`),
+  index('maintenance_running').on(t.mode).where(sql`${t.state} = 'running'`)]);
 export const audit = sqliteTable('audit', {
   id: text('id').primaryKey(), actorId: text('actor_id').references(() => user.id, { onDelete: 'set null' }), action: text('action').notNull(), objectId: text('object_id').notNull(), detail: text('detail').notNull(), createdAt: integer('created_at').notNull()
 });
