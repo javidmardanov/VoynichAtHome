@@ -16,6 +16,7 @@
     "test": "vitest run",
     "test:browser": "playwright test",
     "test:load": "playwright test --config playwright.load.config.ts",
+    "test:visibility": "playwright test --config playwright.visibility.config.ts",
     "volunteer": "node scripts/run-ts.mjs scripts/volunteer.ts",
     "reproduce": "node scripts/run-ts.mjs scripts/reproduce.ts",
     "db:generate": "drizzle-kit generate",

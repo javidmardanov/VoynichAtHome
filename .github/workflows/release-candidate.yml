@@ -97,6 +97,19 @@ jobs:
           npx playwright install --with-deps chromium firefox webkit
           npx playwright test
           npm run test:load
+          xvfb-run --auto-servernum npm run test:visibility
+      - name: Retain non-secret browser acceptance summaries
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: browser-acceptance-evidence
+          path: |
+            platform/test-results/browser-report.json
+            platform/test-results/load-report.json
+            platform/test-results/load-evidence.json
+            platform/test-results/visibility-report.json
+            platform/test-results/visibility-evidence.json
+          retention-days: 30
       - name: Package the native tools and their license notices
         shell: bash
         run: |
