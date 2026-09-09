@@ -4,7 +4,7 @@
 
 Voynich@home builds tools to test explanations of the Voynich manuscript and publish reproducible evidence. Our first research program measures whether search methods recover known Latin and Italian messages under declared encodings. These languages are a starting scope, not a claim about the manuscript's language. A decipherment is a possible research outcome, not a release promise.
 
-The repository contains a deterministic Rust/WebAssembly kernel, bounded search and replay, a browser interface, a coordinator with checked contributions, optional profiles and teams, and a native volunteer client. Automated local browser and operating tests pass. The hosted owner preview has assignments disabled. Full recovery evaluation, actual Google/GitHub sign-in configuration, and deployed operating rehearsals remain acceptance gates. Check the dated release evidence before describing the current status to others.
+The repository contains a deterministic Rust/WebAssembly kernel, bounded search and replay, a browser interface, a coordinator with checked contributions, optional profiles and teams, and a native volunteer client. Automated local browser and operating tests pass. The hosted owner preview has assignments disabled. Full recovery evaluation, actual sign-in through the enabled method, and deployed operating rehearsals remain acceptance gates. Google/GitHub providers are optional. Check the dated release evidence before describing the current status to others.
 
 ## Work that would help
 

@@ -93,6 +93,81 @@ def verify_archive(path):
                 actual = hashlib.file_digest(source, 'sha256').hexdigest()
             if actual != row['sha256'] or archive.getinfo(name).file_size != row['bytes']:
                 raise ValueError('Archive bytes differ: ' + name)
+        if manifest.get('version') != 'vah-recovery-archive-1':
+            raise ValueError('Unsupported recovery archive version')
+        def evidence(name):
+            try:
+                return json.loads(archive.read(name))
+            except KeyError as error:
+                raise ValueError('Archive is missing recovery provenance: ' + name) from error
+        hashes = {row['path']: 'sha256:' + row['sha256'] for row in expected.values()}
+        worker = evidence('worker/manifest.json')
+        report = evidence('reports/evaluation.json')
+        analysis = evidence('reports/evaluation-analysis.json')
+        replay = evidence('audit/replay-report.json')
+        freeze = evidence('reporting-tools/research/recovery/evaluation-v1.freeze.json')
+        preparation = evidence('reporting-tools/research/recovery/evaluation-v1.preparation.json')
+        answers = evidence('retired-answers/answers.json')
+        executables = [name for name in hashes if name.startswith('executable/')]
+        if len(executables) != 1:
+            raise ValueError('Archive must contain exactly one frozen executable')
+        model_paths = set()
+        for row in worker.get('models', {}).values():
+            path = row.get('path')
+            if (not isinstance(path, str) or not path.startswith('models/') or not safe_name(path)
+                    or digest(evidence('worker/' + path)) != row.get('digest')):
+                raise ValueError('Archived worker model differs from its manifest')
+            model_paths.add('worker/' + path)
+        case_paths, ciphertext_paths = set(), set()
+        for row in worker.get('cases', []):
+            path = row.get('path')
+            if (not isinstance(path, str) or not path.startswith('cases/') or not safe_name(path)
+                    or digest(evidence('worker/' + path)) != row.get('digest')):
+                raise ValueError('Archived worker case differs from its manifest')
+            case_paths.add('worker/' + path)
+            ciphertext_digest = row.get('original_ciphertext_digest')
+            if ciphertext_digest is not None:
+                case_id = row.get('id')
+                ciphertext = 'worker/ciphertexts/' + case_id + '.txt' if isinstance(case_id, str) else ''
+                if not ciphertext or hashes.get(ciphertext) != ciphertext_digest:
+                    raise ValueError('Archived original ciphertext differs from its manifest')
+                ciphertext_paths.add(ciphertext)
+        if ({name for name in hashes if name.startswith('worker/models/') and name.endswith('.json')} != model_paths
+                or {name for name in hashes if name.startswith('worker/cases/') and name.endswith('.json')} != case_paths
+                or {name for name in hashes if name.startswith('worker/ciphertexts/')} != ciphertext_paths):
+            raise ValueError('Archived worker inputs differ from their manifest')
+        validate_ready(worker, report, replay)
+        derived = summarize(report)
+        derived['source_report_digest'] = hashes['reports/evaluation.json']
+        if analysis != derived:
+            raise ValueError('Archived recovery analysis differs from its report')
+        if (worker.get('version') != 'vah-recovery-inputs-1'
+                or report.get('version') != 'vah-recovery-report-2'
+                or replay.get('version') != 'vah-panel-replay-2'
+                or freeze.get('version') != 'vah-recovery-freeze-1'
+                or preparation.get('version') != 'vah-recovery-preparation-1'
+                or answers.get('version') != 'vah-recovery-answers-1'
+                or manifest.get('worker_manifest_digest') != digest(worker)
+                or manifest.get('original_records_digest') != report['original_records_digest']
+                or manifest.get('kernel_digest') != worker['kernel_digest']
+                or manifest.get('coverage') != report['coverage']
+                or worker.get('spec_digest') != digest(worker.get('spec'))
+                or report.get('spec') != worker['spec']
+                or report.get('spec_digest') != worker['spec_digest']
+                or report.get('kernel_digest') != worker['kernel_digest']
+                or report.get('answers_commitment') != worker['answers_commitment']
+                or replay.get('original_kernel_digest') != worker['kernel_digest']
+                or hashes[executables[0]] != worker['kernel_digest']
+                or digest(answers) != worker.get('answers_commitment')
+                or answers.get('spec_digest') != worker['spec_digest']
+                or freeze.get('kernel_digest') != worker['kernel_digest']
+                or freeze.get('spec_digest') != worker['spec_digest']
+                or preparation.get('worker_manifest_sha256') != hashes['worker/manifest.json'].removeprefix('sha256:')
+                or preparation.get('spec_digest') != worker['spec_digest']
+                or preparation.get('answers_commitment') != worker['answers_commitment']
+                or manifest.get('frozen_source_commit') != preparation.get('freeze_commit')):
+            raise ValueError('Archived recovery provenance differs')
+        verify_evidence_hashes(report, replay, hashes)
     return {'verified_files': len(expected), 'total_bytes': sum(row['bytes'] for row in expected.values())}
 
 

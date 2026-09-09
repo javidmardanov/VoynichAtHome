@@ -17,7 +17,7 @@ secret. Enable this only on that Sites origin: the application trusts the identi
 headers authenticated by the Sites dispatcher, never a direct Worker origin.
 
 On `/account`, use **Open ChatGPT sign-in**, return to the account page, then
-**Finish ChatGPT sign-in**. This explicit POST creates a revocable Better Auth
+**Finish signing in**. This explicit POST creates a revocable Better Auth
 session. Normal page visits do not silently sign a user back in. The opaque Sites
 subject identifies the account; email does not link accounts or confer ownership.
 An existing app session cannot switch to another subject without signing out.
