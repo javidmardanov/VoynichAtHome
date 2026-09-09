@@ -23,6 +23,18 @@ test('Start, Pause, Stop, and reload preserve bounded work without automatic exe
   await page.getByRole('button',{name:/^(Check for a task|Check saved work|Resume)$/}).click();await expect.poll(()=>page.workers().length).toBe(1);
   await page.getByRole('button',{name:'Stop',exact:true}).click();await expect.poll(()=>page.workers().length).toBe(0);await expect(page.getByRole('status')).toContainText('Stopped.');
 });
+test('verification file controls wait for the page to initialize',async({page})=>{
+  let initialize!:()=>void;const waiting=new Promise<void>(resolve=>initialize=resolve);
+  await page.route('**/_app/immutable/entry/app.*.js',async route=>{await waiting;await route.continue();});
+  try{
+    await page.goto('/verify',{waitUntil:'commit'});
+    await expect(page.getByLabel('Scientific input file (JSON)')).toBeDisabled();
+    await expect(page.getByLabel('Result record file (JSON)',{exact:true})).toBeDisabled();
+  }finally{initialize();}
+  await expect(page.getByLabel('Scientific input file (JSON)')).toBeEnabled();
+  await expect(page.getByLabel('Result record file (JSON)',{exact:true})).toBeEnabled();
+});
+
 test('browser verification reproduces native output',async({page},info)=>{
   const base=JSON.parse(await readFile('tests/fixtures/search-job.json','utf8'));
   const folder='test-results/verify-'+info.project.name;await mkdir(folder,{recursive:true});
@@ -30,7 +42,7 @@ test('browser verification reproduces native output',async({page},info)=>{
     const job={...base,encoding,algorithm,iterations:257,symbol_count:encoding==='substitution'?23:46,ciphertext:base.ciphertext.map((c:number,i:number)=>c+(encoding!=='substitution'&&i%2?23:0))};
     const input=resolve(folder+'/job.json'),output=resolve(folder+'/result.json');await writeFile(input,JSON.stringify(job));
     const command=spawnSync(resolve('../kernel/target/release/vah-search'+(process.platform==='win32'?'.exe':'')),['run','--job',input,'--out',output]);expect(command.status).toBe(0);
-    await page.goto('/verify');await page.getByLabel('Scientific input file (JSON)').setInputFiles(input);await page.getByLabel('Result record file (JSON)',{exact:true}).setInputFiles(output);
+    await page.goto('/verify');await expect(page.getByLabel('Scientific input file (JSON)')).toBeEnabled();await page.getByLabel('Scientific input file (JSON)').setInputFiles(input);await page.getByLabel('Result record file (JSON)',{exact:true}).setInputFiles(output);
     await page.getByRole('button',{name:'Replay and compare'}).click();await expect(page.getByRole('status')).toContainText('The replay matches the complete recorded result.',{timeout:30000});
   }
 });
@@ -44,7 +56,7 @@ test('browser verification also reproduces generation and verification work',asy
   for(const input of inputs){
     const result=await native(input.version==='vah-generation-input-1'?{op:'generate',input}:{op:'verify',job:base,result:original});
     const jobFile=resolve(folder,'input.json'),resultFile=resolve(folder,'result.json');await writeFile(jobFile,JSON.stringify(input));await writeFile(resultFile,JSON.stringify(result));
-    await page.goto('/verify');await page.getByLabel('Scientific input file (JSON)').setInputFiles(jobFile);await page.getByLabel('Result record file (JSON)',{exact:true}).setInputFiles(resultFile);
+    await page.goto('/verify');await expect(page.getByLabel('Scientific input file (JSON)')).toBeEnabled();await page.getByLabel('Scientific input file (JSON)').setInputFiles(jobFile);await page.getByLabel('Result record file (JSON)',{exact:true}).setInputFiles(resultFile);
     await page.getByRole('button',{name:'Replay and compare'}).click();await expect(page.getByRole('status')).toContainText('The replay matches the complete recorded result.',{timeout:30000});
   }
 });
@@ -70,7 +82,7 @@ test('only authenticated owner requests allow the backup object envelope',async(
   expect(imported.status()).toBe(409);expect((await imported.json()).error).toContain('Disable assignments');
   const guestResponse=await request.post('/api/v1/guest',{headers:{origin},data:{}});expect(guestResponse.ok()).toBe(true);
   expect((await request.post('/api/v1/results',{headers:{origin},data:payload})).status()).toBe(413);
-  expect((await request.post('/api/v1/owner',{headers:{origin,cookie:''},data:payload})).status()).toBe(403);
+  expect((await request.post('/api/v1/owner',{headers:{origin,cookie:''},data:{action:'backup'}})).status()).toBe(403);
   expect((await request.post('/api/v1/owner',{headers,data:{...payload,padding:'x'.repeat(1024)}})).status()).toBe(413);
 });
 
