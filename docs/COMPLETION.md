@@ -1,6 +1,6 @@
 # Completion ledger — updated 9 September 2026 UTC
 
-The owner renewed the build, test, verification, and deployment request on 9 September UTC, following the 7 September website deferral. Private deployment work has resumed alongside the unchanged frozen recovery study. Provider sign-in setup, hosted acceptance, the public pilot, and the final publication decision remain pending. This is not a completed public release.
+The owner renewed the build, test, verification, and deployment request on 9 September UTC, following the 7 September website deferral. Private version 7 is deployed from source `86e87a050a5ba1ad33add7b84dc07633f1b1d97a` alongside the unchanged frozen recovery study. Provider sign-in setup, hosted operational acceptance, the public pilot, and final research publication remain pending. This is not a completed public release or a decipherment.
 
 ## Preserved research
 
@@ -51,7 +51,9 @@ The executable-path option enforces the original digest for original runs and su
 
 ## Software evidence and remaining acceptance
 
-Local Windows checks passed for the implementation under review: pinned Rust workspace tests and release build; 33 Python tests; 31 platform tests; source/type checks; native CLI and Worker packaging; 26 browser cases across all three engines; and 25 computing clients plus five waiting clients. The new streamed report reproduced all 324 published development summaries exactly. Revision-specific CI is recorded in [release status](RELEASE-STATUS.md) after it finishes. Local fixtures are not real provider sessions or hosted scheduling evidence.
+The 9 September Windows checks passed 62 Rust tests, 35 Python tests, 36 platform tests, source/type checks, the production build, native CLI and Worker packaging, and 30 browser cases across all three engines (six planned skips). The local load test passed with 25 computing clients receiving checked credit while five clients waited. All 14 PR/push CI jobs passed at the deployed source; links and the retained initial browser failures are recorded in [release status](RELEASE-STATUS.md). The previously checked streamed report reproduced all 324 published development summaries exactly. Local fixtures are not real provider sessions or hosted scheduling evidence.
+
+The [private deployment evidence](evidence/private-preview-2026-09-09.json) records version 7, 16 expected live HTTP responses, and the matching approved module digest. Operation health is available and reports no successful scheduled execution; assignments remain disabled, the campaign queue is empty, and no OAuth providers are configured. Full private browser/load reports, packaging receipts, and initial failed browser artifacts are retained under `data/operations/deployment-2026-09-09`. This documentation records the completed deployment; it is not part of the deployed source revision.
 
 The additive `0006` migration records scheduled-maintenance and backup health. New leases stop after 20 minutes without healthy scheduled maintenance; valid outstanding submissions remain accepted. Restoration revokes sessions, preserves deletion obligations and the manual stop, and clears restored health so a fresh scheduled execution is required. Backups are schema-bound: use a matching release to restore older backups; do not bypass compatibility checks.
 

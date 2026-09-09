@@ -2,7 +2,7 @@
 
 Status: development, with an owner-only [hosted preview](https://voynich-at-home.jenobi.chatgpt.site). Assignments are disabled. No public research release or production readiness is claimed.
 
-The owner renewed the build, test, verification, and deployment request on 9 September UTC, following the 7 September website deferral. Private deployment work has resumed. Public campaign launch remains gated on scientific and hosted acceptance. The frozen local study and reproducibility tooling continue; see the [completion ledger](COMPLETION.md).
+The owner renewed the build, test, verification, and deployment request on 9 September UTC, following the 7 September website deferral. Private version 7 is deployed at source `86e87a050a5ba1ad33add7b84dc07633f1b1d97a`. Public campaign launch remains gated on scientific and hosted acceptance. The frozen local study and reproducibility tooling continue; see the [completion ledger](COMPLETION.md).
 
 | Stage | Implemented and checked | Still required |
 |---|---|---|
@@ -30,7 +30,9 @@ The browser rehearsal also exposed file-selection events arriving before Svelte 
 
 Authenticated owner requests now allow 1,024 bytes of envelope overhead around an 8,000,000-byte backup object. General API limits and the raw object bound are unchanged. The owner export list identifies larger objects that require provider upload, as already specified in the operating guide.
 
-Local Windows checks passed 62 Rust tests, 35 Python tests, 36 platform tests, source/type checks, the production build, and CLI/Worker packaging. Five focused lifecycle and backup-boundary regressions passed again with the updated dependency. The dependency audit identified the upstream [Sharp/libheif advisory](https://github.com/lovell/sharp/security/advisories/GHSA-rgj7-g3m4-5g8c); Sharp is overridden to 0.35.4, and the pinned npm audit then reported zero vulnerabilities. This does not establish hosted operations or general absence of vulnerabilities. Browser/load and private deployment evidence for this revision are recorded separately when completed.
+Local Windows checks passed 62 Rust tests, 35 Python tests, 36 platform tests, source/type checks, the production build, and CLI/Worker packaging. Five focused lifecycle and backup-boundary regressions passed again with the updated dependency. The dependency audit identified the upstream [Sharp/libheif advisory](https://github.com/lovell/sharp/security/advisories/GHSA-rgj7-g3m4-5g8c); Sharp is overridden to 0.35.4, and the pinned npm audit then reported zero vulnerabilities. This does not establish hosted operations or general absence of vulnerabilities.
+
+The final local browser run passed 30 cases across Chromium, Firefox, and WebKit, with six planned duplicate skips and no flaky cases. The local load run passed with 25 computing clients receiving checked credit while five additional clients waited. All 14 PR and push CI jobs passed at the deployed source `86e87a050a5ba1ad33add7b84dc07633f1b1d97a`: [contracts](https://github.com/javidmardanov/VoynichAtHome/actions/runs/34304562467), [kernel](https://github.com/javidmardanov/VoynichAtHome/actions/runs/34304562451), [PR platform](https://github.com/javidmardanov/VoynichAtHome/actions/runs/34304562510), and [push platform](https://github.com/javidmardanov/VoynichAtHome/actions/runs/34304560251). Platform checks passed on Windows, macOS, and Linux; both CI browser/load runs confirmed the same 30-case and 25-plus-five results. This is emulator and CI evidence, not hosted computation load.
 
 ## Completed software evidence
 
@@ -57,6 +59,8 @@ Generation resumes per legacy replicate. Annealing search and verification resum
 Shared R2 objects store identical language models and ciphertexts once. Hydration checks their digests and the complete original scientific identity. Storage reserves include those objects; interrupted imports remain unassignable. Existing full JSON objects remain byte-preserved for compatible rollback. All six migrations, including `shared_objects`, are present in private version 4 (19 tables).
 
 ## Hosted evidence and limits
+
+[Version 7 evidence](evidence/private-preview-2026-09-09.json) records the successful private deployment of source `86e87a050a5ba1ad33add7b84dc07633f1b1d97a` and 16 live HTTP responses with their expected statuses. The downloaded approved WASM module matched its published SHA-256. The new operation-health endpoint is live and correctly reports no successful scheduled maintenance; assignments are disabled, there are no campaigns, OAuth providers are unconfigured, and the owner API rejects requests without an application owner session. These read-only checks used private Sites access. They do not establish OAuth, hosted scheduling, active-campaign restoration, hosted computation load, or decipherment. Post-deployment documentation is separate from the deployed source.
 
 [Private-preview evidence](evidence/private-preview-2026-09-05.json) records 24 live page checks across the three browser engines with no browser exceptions in the completed run. The exact deployed source was `a62fa225a0908858381254043b65b2ece5c54d1f`, Sites version 4. The preview was rolled back to version 3 and restored to version 4; status, approved module and report endpoints responded correctly with assignments disabled throughout. Before this rehearsal the database had no campaigns, work units or user accounts.
 

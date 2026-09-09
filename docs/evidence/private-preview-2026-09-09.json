@@ -1,0 +1,244 @@
+{
+  "version": "vah-private-deployment-evidence-1",
+  "source_commit": "86e87a050a5ba1ad33add7b84dc07633f1b1d97a",
+  "deployment": {
+    "id": "appgdep_6aa0cb5fc100819185700524f4665674",
+    "project_id": "appgprj_6a9bde3c663c81918f210fd74920a10a",
+    "title": "Voynich@home",
+    "version_id": "appgprj_6a9bde3c663c81918f210fd74920a10a~appgver_f837a16fb8d081918c03f38f1895ab76",
+    "type": "publish",
+    "status": "succeeded",
+    "url": "https://voynich-at-home.jenobi.chatgpt.site",
+    "screenshot_asset_pointer": null,
+    "provider_deployment_id": "site---6a9bde3c663c81918f210fd74920a10a",
+    "failure_message": null,
+    "env_set_revision": 2,
+    "updated_at": "2026-09-09T02:58:56.327144+00:00"
+  },
+  "site_version_number": 7,
+  "audience": "Owner only; one allowed owner, no groups or external visitors.",
+  "local": {
+    "rust_tests": 62,
+    "python_tests": 35,
+    "platform_tests": 36,
+    "patched_dependency_regressions": 5,
+    "typecheck": "passed",
+    "build": "passed",
+    "cli_package": "passed",
+    "worker_package": "passed",
+    "npm_audit_vulnerabilities": 0,
+    "browser": {
+      "passed": 30,
+      "skipped": 6,
+      "unexpected": 0,
+      "flaky": 0,
+      "engines": [
+        "Chromium",
+        "Firefox",
+        "WebKit"
+      ]
+    },
+    "load": {
+      "version": "vah-operation-test-1",
+      "scenario": "25 computing clients plus 5 waiting",
+      "computing_clients": 25,
+      "waiting_clients": 5,
+      "checked_clients": 25,
+      "credit_per_client": 4096,
+      "elapsed_ms": 77037,
+      "environment": "One local Chromium host and the bundled Cloudflare Worker in Miniflare. This is not deployed-load evidence or independent-machine validation.",
+      "command_exit_code": 0
+    }
+  },
+  "ci": {
+    "status": "passed",
+    "checks": 14,
+    "source_commit": "86e87a050a5ba1ad33add7b84dc07633f1b1d97a",
+    "pull_request": "https://github.com/javidmardanov/VoynichAtHome/actions/runs/34304562510",
+    "push": "https://github.com/javidmardanov/VoynichAtHome/actions/runs/34304560251",
+    "browser_passed": 30,
+    "browser_skipped": 6,
+    "checked_clients": 25
+  },
+  "live": {
+    "checked_at": "2026-09-09T03:00:19.976745+00:00",
+    "url": "https://voynich-at-home.jenobi.chatgpt.site",
+    "source_commit": "86e87a050a5ba1ad33add7b84dc07633f1b1d97a",
+    "scope": "Read-only live HTTP checks through owner-private Sites access; no provider OAuth, hosted computation load, or scheduled execution was established.",
+    "checks": [
+      {
+        "path": "/",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/contribute",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/experiments",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/methods",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/verify",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/downloads",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/community",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/status",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/account",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/privacy",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/research/development",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/api/v1/status",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/api/v1/me",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/api/v1/reports",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "path": "/api/v1/owner",
+        "status": 403,
+        "expected": 403,
+        "passed": true
+      },
+      {
+        "path": "/kernels/764a70e186939f21c4d04ad8d67b910827a2e2b8b76837fd23862c0f721880c7.wasm",
+        "status": 200,
+        "expected": 200,
+        "passed": true
+      },
+      {
+        "check": "approved_module_sha256",
+        "digest": "sha256:764a70e186939f21c4d04ad8d67b910827a2e2b8b76837fd23862c0f721880c7",
+        "passed": true
+      },
+      {
+        "check": "assignments_disabled",
+        "passed": true
+      },
+      {
+        "check": "operation_health_available",
+        "passed": true
+      },
+      {
+        "check": "no_campaigns",
+        "passed": true
+      },
+      {
+        "check": "oauth_unconfigured",
+        "passed": true
+      },
+      {
+        "check": "owner_access_requires_app_session",
+        "passed": true
+      }
+    ],
+    "status": {
+      "version": "vah-status-1",
+      "stage": "staging",
+      "assignments_enabled": false,
+      "reason": "No campaign is open.",
+      "campaigns": [],
+      "queue": [],
+      "budget": {
+        "window": "2026-09",
+        "assignments": 0,
+        "reserved_ms": 0,
+        "max_assignments": 0,
+        "max_reserved_ms": 0,
+        "max_inflight": 25,
+        "requests": 52,
+        "max_requests": 20000
+      },
+      "health": {
+        "maintenance": {
+          "healthy": false,
+          "last_started_at": null,
+          "last_success_at": null,
+          "last_failure_at": null,
+          "error": null,
+          "age_seconds": null,
+          "max_age_seconds": 1200
+        },
+        "backup": {
+          "last_success_at": null,
+          "last_failure_at": null,
+          "error": null
+        },
+        "oldest_pending_check_at": null,
+        "oldest_pending_check_age_seconds": null
+      },
+      "resources": {
+        "reserved_input_bytes": 0,
+        "replay_attempts": 0,
+        "replay_wall_ms": 0,
+        "max_input_bytes": 128000000,
+        "measurement": "Replay elapsed time is not provider-metered CPU time. Storage counts compact inputs and shared objects; older full inputs retain their reservation."
+      },
+      "validation": "Candidate checks and trusted replay; browser identifiers do not prove independent people or machines."
+    },
+    "all_passed": true
+  },
+  "limitations": [
+    "No public campaign or decipherment is claimed.",
+    "No real OAuth or scheduled hosted execution was established.",
+    "Browser and load tests used local emulation; no hosted computation load was run.",
+    "The frozen scientific study remains incomplete. Concurrent local machine activity affects its resource measurements.",
+    "Initial failed and interrupted browser evidence is retained privately; the final passing run follows the documented fixes."
+  ]
+}
