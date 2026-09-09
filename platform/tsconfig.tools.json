@@ -1,0 +1,6 @@
+{
+  "extends":"./tsconfig.json",
+  "compilerOptions":{"allowJs":false,"noEmit":true,"types":["node","vite/client"]},
+  "include":["scripts/**/*.ts","playwright*.ts","db/**/*.ts","src/app.d.ts"],
+  "exclude":["node_modules"]
+}

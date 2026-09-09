@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "vah-verification-result-1"
+    },
+    "job_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "expected_result_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "actual_result_digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "matches": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "version",
+    "job_digest",
+    "expected_result_digest",
+    "actual_result_digest",
+    "matches"
+  ],
+  "additionalProperties": false,
+  "$id": "urn:voynich:contracts:v1:verification-result",
+  "x-semantic-validation": "See platform/src/lib/contracts.ts and the Rust kernel; schema alone does not establish valid identities, scores, or execution."
+}

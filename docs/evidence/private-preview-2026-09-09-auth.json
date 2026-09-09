@@ -1,0 +1,370 @@
+{
+  "version": "vah-private-deployment-evidence-1",
+  "source_commit": "cbbaf5f136d281e70646f2b4ccc8d946401435a3",
+  "deployment": {
+    "id": "appgdep_6aa0dbfa409c819193ce65ceb2eab1d3",
+    "project_id": "appgprj_6a9bde3c663c81918f210fd74920a10a",
+    "title": "Voynich@home",
+    "version_id": "appgprj_6a9bde3c663c81918f210fd74920a10a~appgver_5479817f233c819194adf2acf69bed2f",
+    "type": "publish",
+    "status": "succeeded",
+    "url": "https://voynich-at-home.jenobi.chatgpt.site",
+    "screenshot_asset_pointer": "sediment://file_00000000368481f8ba646cb9ff9883c2",
+    "provider_deployment_id": "site---6a9bde3c663c81918f210fd74920a10a",
+    "failure_message": null,
+    "env_set_revision": 3,
+    "updated_at": "2026-09-09T04:10:42.387343+00:00"
+  },
+  "site_version_number": 8,
+  "audience": "Owner only; one allowed owner, no groups or external visitors.",
+  "local": {
+    "platform_tests": 46,
+    "typecheck": "passed",
+    "build": "passed",
+    "cli_package": "passed",
+    "worker_package": "passed",
+    "browser_before_owner_preflight": {
+      "startTime": "2026-09-09T03:57:03.927Z",
+      "duration": 302847.257,
+      "expected": 30,
+      "skipped": 6,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "final_owner_preflight_browser": {
+      "startTime": "2026-09-09T04:04:05.796Z",
+      "duration": 94291.62800000001,
+      "expected": 3,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "load": {
+      "version": "vah-operation-test-1",
+      "scenario": "25 computing clients plus 5 waiting",
+      "computing_clients": 25,
+      "waiting_clients": 5,
+      "checked_clients": 25,
+      "credit_per_client": 4096,
+      "elapsed_ms": 92543,
+      "environment": "One local Chromium host and the bundled Cloudflare Worker in Miniflare. This is not deployed-load evidence or independent-machine validation."
+    }
+  },
+  "ci": {
+    "source_commit": "cbbaf5f136d281e70646f2b4ccc8d946401435a3",
+    "all_six_runs": "success",
+    "runs": {
+      "pr_contracts": 34309561628,
+      "pr_kernel": 34309561637,
+      "pr_platform": 34309561660,
+      "push_contracts": 34309558583,
+      "push_kernel": 34309558566,
+      "push_platform": 34309558585
+    },
+    "platform_os": [
+      "Ubuntu",
+      "Windows",
+      "macOS"
+    ],
+    "pr_browser": {
+      "startTime": "2026-09-09T04:09:10.047Z",
+      "duration": 112603.02,
+      "expected": 30,
+      "skipped": 6,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "push_browser": {
+      "startTime": "2026-09-09T04:09:15.654Z",
+      "duration": 115870.04000000001,
+      "expected": 30,
+      "skipped": 6,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "pr_load": {
+      "version": "vah-operation-test-1",
+      "scenario": "25 computing clients plus 5 waiting",
+      "computing_clients": 25,
+      "waiting_clients": 5,
+      "checked_clients": 25,
+      "credit_per_client": 4096,
+      "elapsed_ms": 80149,
+      "environment": "One local Chromium host and the bundled Cloudflare Worker in Miniflare. This is not deployed-load evidence or independent-machine validation."
+    },
+    "push_load": {
+      "version": "vah-operation-test-1",
+      "scenario": "25 computing clients plus 5 waiting",
+      "computing_clients": 25,
+      "waiting_clients": 5,
+      "checked_clients": 25,
+      "credit_per_client": 4096,
+      "elapsed_ms": 99299,
+      "environment": "One local Chromium host and the bundled Cloudflare Worker in Miniflare. This is not deployed-load evidence or independent-machine validation."
+    }
+  },
+  "live": {
+    "version": "vah-live-checks-1",
+    "source_commit": "cbbaf5f136d281e70646f2b4ccc8d946401435a3",
+    "checked_at": "2026-09-09T04:15:56.959206+00:00",
+    "url": "https://voynich-at-home.jenobi.chatgpt.site",
+    "scope": "Private HTTP verification, without fabricated app identities, account creation, work execution, or scheduled-health writes.",
+    "checks": [
+      {
+        "path": "/",
+        "method": "GET",
+        "private_access": true,
+        "status": 200,
+        "expected": [
+          200
+        ],
+        "passed": true
+      },
+      {
+        "path": "/account",
+        "method": "GET",
+        "private_access": true,
+        "status": 200,
+        "expected": [
+          200
+        ],
+        "passed": true
+      },
+      {
+        "path": "/status",
+        "method": "GET",
+        "private_access": true,
+        "status": 200,
+        "expected": [
+          200
+        ],
+        "passed": true
+      },
+      {
+        "path": "/contribute",
+        "method": "GET",
+        "private_access": true,
+        "status": 200,
+        "expected": [
+          200
+        ],
+        "passed": true
+      },
+      {
+        "path": "/experiments",
+        "method": "GET",
+        "private_access": true,
+        "status": 200,
+        "expected": [
+          200
+        ],
+        "passed": true
+      },
+      {
+        "path": "/methods",
+        "method": "GET",
+        "private_access": true,
+        "status": 200,
+        "expected": [
+          200
+        ],
+        "passed": true
+      },
+      {
+        "path": "/verify",
+        "method": "GET",
+        "private_access": true,
+        "status": 200,
+        "expected": [
+          200
+        ],
+        "passed": true
+      },
+      {
+        "path": "/downloads",
+        "method": "GET",
+        "private_access": true,
+        "status": 200,
+        "expected": [
+          200
+        ],
+        "passed": true
+      },
+      {
+        "path": "/privacy",
+        "method": "GET",
+        "private_access": true,
+        "status": 200,
+        "expected": [
+          200
+        ],
+        "passed": true
+      },
+      {
+        "path": "/community",
+        "method": "GET",
+        "private_access": true,
+        "status": 200,
+        "expected": [
+          200
+        ],
+        "passed": true
+      },
+      {
+        "path": "/api/v1/status",
+        "method": "GET",
+        "private_access": true,
+        "status": 200,
+        "expected": [
+          200
+        ],
+        "passed": true
+      },
+      {
+        "path": "/api/v1/me",
+        "method": "GET",
+        "private_access": true,
+        "status": 200,
+        "expected": [
+          200
+        ],
+        "passed": true
+      },
+      {
+        "path": "/api/v1/reports",
+        "method": "GET",
+        "private_access": true,
+        "status": 200,
+        "expected": [
+          200
+        ],
+        "passed": true
+      },
+      {
+        "path": "/api/auth/get-session",
+        "method": "GET",
+        "private_access": true,
+        "status": 200,
+        "expected": [
+          200
+        ],
+        "passed": true
+      },
+      {
+        "path": "/api/v1/owner",
+        "method": "GET",
+        "private_access": true,
+        "status": 403,
+        "expected": [
+          403
+        ],
+        "passed": true
+      },
+      {
+        "path": "/api/maintenance/github",
+        "method": "GET",
+        "private_access": true,
+        "status": 405,
+        "expected": [
+          405
+        ],
+        "passed": true
+      },
+      {
+        "path": "/api/maintenance/github",
+        "method": "POST",
+        "private_access": true,
+        "status": 503,
+        "expected": [
+          503
+        ],
+        "passed": true
+      },
+      {
+        "path": "/api/maintenance/github",
+        "method": "POST",
+        "private_access": false,
+        "status": 403,
+        "expected": [
+          302,
+          303,
+          307,
+          308,
+          401,
+          403
+        ],
+        "passed": true
+      },
+      {
+        "path": "/kernels/764a70e186939f21c4d04ad8d67b910827a2e2b8b76837fd23862c0f721880c7.wasm",
+        "method": "GET",
+        "private_access": true,
+        "status": 200,
+        "expected": [
+          200
+        ],
+        "passed": true
+      }
+    ],
+    "invariants": {
+      "module_sha256_matches": true,
+      "assignments_disabled": true,
+      "no_campaigns": true,
+      "no_scheduled_success": true,
+      "sites_signin_available": true,
+      "preview_access_does_not_create_app_session": true,
+      "explicit_signin_controls_present": true
+    },
+    "status": {
+      "version": "vah-status-1",
+      "stage": "staging",
+      "assignments_enabled": false,
+      "reason": "No campaign is open.",
+      "campaigns": [],
+      "queue": [],
+      "budget": {
+        "window": "2026-09",
+        "assignments": 0,
+        "reserved_ms": 0,
+        "max_assignments": 0,
+        "max_reserved_ms": 0,
+        "max_inflight": 25,
+        "requests": 63,
+        "max_requests": 20000
+      },
+      "health": {
+        "maintenance": {
+          "healthy": false,
+          "last_started_at": null,
+          "last_success_at": null,
+          "last_failure_at": null,
+          "error": null,
+          "age_seconds": null,
+          "max_age_seconds": 1200
+        },
+        "backup": {
+          "last_success_at": null,
+          "last_failure_at": null,
+          "error": null
+        },
+        "oldest_pending_check_at": null,
+        "oldest_pending_check_age_seconds": null
+      },
+      "resources": {
+        "reserved_input_bytes": 0,
+        "replay_attempts": 0,
+        "replay_wall_ms": 0,
+        "max_input_bytes": 128000000,
+        "measurement": "Replay elapsed time is not provider-metered CPU time. Storage counts compact inputs and shared objects; older full inputs retain their reservation."
+      },
+      "validation": "Candidate checks and trusted replay; browser identifiers do not prove independent people or machines."
+    },
+    "all_passed": true
+  },
+  "normal_browser_signin": "The visible account controls navigated to https://auth.openai.com/log-in. User authentication and app-owner binding remain pending.",
+  "limits": [
+    "No hosted computation load, autonomous schedule, complete hosted restoration, physical-device resource acceptance, or manuscript decipherment was established.",
+    "The initial scheduler HTTP probe received 403 because urllib sent a form content type. Explicit JSON reached the unconfigured verifier (503). The next source revision fixes the inactive workflow client and adds a test of its actual Python transport.",
+    "The local frozen study continued during local tests; concurrent machine activity affects its resource measurements."
+  ]
+}

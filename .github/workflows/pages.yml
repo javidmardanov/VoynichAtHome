@@ -1,0 +1,50 @@
+name: verification page
+
+# Publishes web/verify to GitHub Pages. The repository owner must enable
+# Pages once (Settings -> Pages -> Source: GitHub Actions); until then this
+# workflow fails at the deploy step, which is expected.
+on:
+  workflow_dispatch:
+  push:
+    branches: ["claude/voynich-at-home-sotqwg"]
+    paths: ["web/verify/**", "kernel/**", ".github/workflows/pages.yml"]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup show
+        working-directory: kernel
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build the page artifacts
+        run: web/verify/build.sh
+      - name: Verify the page headlessly (Playwright, Chromium)
+        working-directory: web/verify
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+          node e2e.mjs
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/verify
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

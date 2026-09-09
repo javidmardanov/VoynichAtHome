@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0.0",
+  "result_id": "result:toy-caesar:wu0:attempt2",
+  "work_unit_id": "sha256:7cf2deabcda0baf324f32c2b1a1074b9b87f349f5f838168c2b6a1cc4586a315",
+  "experiment_digest": "sha256:928c001b2841c95aebbcef3c8a90330263e59948e77d43a00d079b73af08e55c",
+  "attempt": 2,
+  "worker_artifact_digest": "sha256:7b9bd1869b22419e77f5661492e1ed54fcb3c9489e555371f8a375f6c419a2a8",
+  "host_profile": {
+    "runner_adapter": "ci",
+    "platform": "linux",
+    "architecture": "x86_64",
+    "accelerator_class": "none",
+    "numeric_profile": "ascii-codepoints-integer-counts-single-thread-v1"
+  },
+  "started_at": "2026-08-30T19:51:00Z",
+  "finished_at": "2026-08-30T19:51:01Z",
+  "status": "success",
+  "input_digests": [
+    "sha256:61240884ab999dfc1fe824d986b2411aca89d0672823907058a029094d17c288",
+    "sha256:492630188c1d37ba82a59668a43f52ff42855641f65e70830e1b114e83971b8c"
+  ],
+  "output": {
+    "logical_name": "toy-caesar-output",
+    "media_type": "application/json",
+    "bytes": 91,
+    "sha256": "322b9eed6246c7053523275d9c43800b73b0eabf55899fa6f2c99edeaa000757",
+    "summary": {
+      "best_key": 7,
+      "best_score": 25,
+      "candidates_evaluated": 8,
+      "score_unit": "matching_codepoints"
+    }
+  },
+  "telemetry": {
+    "wall_milliseconds": 6,
+    "cpu_milliseconds": 4,
+    "peak_memory_bytes": 13631488,
+    "bytes_read": 50,
+    "bytes_written": 91
+  },
+  "checkpoint_restarts": 0,
+  "error": null
+}

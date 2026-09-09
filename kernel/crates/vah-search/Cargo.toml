@@ -1,0 +1,20 @@
+[package]
+name = "vah-search"
+description = "Bounded deterministic cipher recovery without answer access"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+license = "MIT"
+
+[[bin]]
+name = "vah-search"
+path = "src/main.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+libm.workspace = true
+vah-core = { path = "../vah-core" }
+vah-generators = { path = "../vah-generators" }
+clap = { version = "4", features = ["derive"] }

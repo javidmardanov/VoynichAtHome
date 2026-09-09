@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0.0",
+  "validation_id": "validation:toy-caesar:wu0:v1",
+  "work_unit_id": "sha256:7cf2deabcda0baf324f32c2b1a1074b9b87f349f5f838168c2b6a1cc4586a315",
+  "experiment_digest": "sha256:928c001b2841c95aebbcef3c8a90330263e59948e77d43a00d079b73af08e55c",
+  "validated_at": "2026-08-30T19:52:00Z",
+  "validator_artifact_digest": "sha256:abe2293d08e6d0f9ea6c64b601893f340a1a92c12b4d621db1c647fe7e681adf",
+  "equivalence_rule": "Exact SHA-256 equality of output artifact bytes.",
+  "result_ids": [
+    "result:toy-caesar:wu0:attempt1",
+    "result:toy-caesar:wu0:attempt2"
+  ],
+  "result_output_digests": [
+    "sha256:322b9eed6246c7053523275d9c43800b73b0eabf55899fa6f2c99edeaa000757",
+    "sha256:322b9eed6246c7053523275d9c43800b73b0eabf55899fa6f2c99edeaa000757"
+  ],
+  "quorum": 2,
+  "decision": "canonical",
+  "canonical_output_digest": "sha256:322b9eed6246c7053523275d9c43800b73b0eabf55899fa6f2c99edeaa000757",
+  "reason": "Two independent runner profiles returned byte-identical output for the synthetic work unit."
+}

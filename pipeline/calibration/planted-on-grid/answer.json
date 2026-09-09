@@ -1,0 +1,12 @@
+{
+  "family": "selfcite",
+  "generator_resources_digest": null,
+  "layout_digest": "sha256:fb3d056d08c70cd6e5cd28d269557415fdcdbf7d1ddcd197c061bf2ba97eddcc",
+  "params": {
+    "max_len": 8,
+    "p_modify": 0.8,
+    "w_delete": 2,
+    "window_lines": 4
+  },
+  "seed": 1
+}

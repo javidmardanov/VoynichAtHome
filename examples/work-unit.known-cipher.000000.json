@@ -1,0 +1,69 @@
+{
+  "schema_version": "1.0.0",
+  "work_unit_id": "sha256:7cf2deabcda0baf324f32c2b1a1074b9b87f349f5f838168c2b6a1cc4586a315",
+  "experiment_digest": "sha256:928c001b2841c95aebbcef3c8a90330263e59948e77d43a00d079b73af08e55c",
+  "compiler": {
+    "name": "voynich_at_home.contracts",
+    "version": "0.1.0",
+    "source_digest": "sha256:abe2293d08e6d0f9ea6c64b601893f340a1a92c12b4d621db1c647fe7e681adf"
+  },
+  "sequence": 0,
+  "partition": {
+    "role": "control",
+    "group_ids": [
+      "synthetic-latin-phrase-v1"
+    ],
+    "control_id": "positive-caesar-7"
+  },
+  "worker": {
+    "artifact_digest": "sha256:7b9bd1869b22419e77f5661492e1ed54fcb3c9489e555371f8a375f6c419a2a8",
+    "entrypoint": "python benchmarks/workers/caesar_search.py",
+    "application_profile": "python-ascii-integer-reference-v1"
+  },
+  "inputs": [
+    {
+      "artifact_id": "synthetic-latin-plaintext",
+      "logical_name": "answer",
+      "relative_path": "benchmarks/fixtures/synthetic-plaintext.txt",
+      "media_type": "text/plain",
+      "bytes": 25,
+      "sha256": "61240884ab999dfc1fe824d986b2411aca89d0672823907058a029094d17c288"
+    },
+    {
+      "artifact_id": "synthetic-caesar-ciphertext",
+      "logical_name": "ciphertext",
+      "relative_path": "benchmarks/fixtures/synthetic-ciphertext.txt",
+      "media_type": "text/plain",
+      "bytes": 25,
+      "sha256": "492630188c1d37ba82a59668a43f52ff42855641f65e70830e1b114e83971b8c"
+    }
+  ],
+  "parameters": {
+    "key_range_start": 0,
+    "key_range_end": 7,
+    "tie_break": "smallest_integer_key"
+  },
+  "randomness": {
+    "algorithm": "sha256-counter-v1",
+    "seed_hex": "0000000000000000000000000000000000000000000000000000000000000000",
+    "stream_id": 0
+  },
+  "numeric_profile": "ascii-codepoints-integer-counts-single-thread-v1",
+  "resources": {
+    "cpu_seconds": 5,
+    "memory_bytes": 16777216,
+    "disk_bytes": 1048576,
+    "output_bytes": 4096,
+    "wall_seconds": 10
+  },
+  "checkpoint": {
+    "enabled": false,
+    "interval_seconds": 1,
+    "schema_digest": "sha256:897df3eb46e8d0c5557bcb1a0146e349e2631f93289b91a353bd57378b24578c"
+  },
+  "output_contract": {
+    "schema_digest": "sha256:32c01dd002da7278f0144f7fba93f4bdccabf0447f7b880072b99e6e65f8efc5",
+    "logical_name": "toy-caesar-output",
+    "media_type": "application/json"
+  }
+}

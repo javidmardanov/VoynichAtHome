@@ -1,0 +1,66 @@
+{
+  "retrieved_at": "2026-09-05",
+  "purpose": "Exact upstream license texts omitted from these npm package tarballs. Package metadata declares the corresponding SPDX terms.",
+  "packages": [
+    {
+      "name": "sirv",
+      "version": "3.0.2",
+      "commit": "1135207e92c40354543cbd15c763c7a61d79d432",
+      "commit_provenance": "npm gitHead",
+      "license_commit": "1135207e92c40354543cbd15c763c7a61d79d432",
+      "license_note": "License at the version source revision.",
+      "source": "https://github.com/lukeed/sirv/blob/1135207e92c40354543cbd15c763c7a61d79d432/license",
+      "license": "MIT",
+      "file": "sirv-3.0.2.txt",
+      "sha256": "ba573393f24555ac0528612ad39665fab5bdcc80330a61096024bbf5f736526d"
+    },
+    {
+      "name": "@polka/url",
+      "version": "1.0.0-next.29",
+      "commit": "02cbdb529ddca0a9f3d225e2abb2931924219cc3",
+      "commit_provenance": "npm gitHead",
+      "license_commit": "02cbdb529ddca0a9f3d225e2abb2931924219cc3",
+      "license_note": "License at the version source revision.",
+      "source": "https://github.com/lukeed/polka/blob/02cbdb529ddca0a9f3d225e2abb2931924219cc3/license",
+      "license": "MIT",
+      "file": "@polka__url-1.0.0-next.29.txt",
+      "sha256": "ba573393f24555ac0528612ad39665fab5bdcc80330a61096024bbf5f736526d"
+    },
+    {
+      "name": "@better-auth/utils",
+      "version": "0.4.2",
+      "commit": "b20329a32d78f1f9bcc088bbd6f982b28c4192f1",
+      "commit_provenance": "upstream v0.4.2 tag",
+      "license_commit": "ef522888b7b2ff77ca13f0afb476dfae8f297862",
+      "license_note": "MIT declared by the version; this upstream notice was added on 2026-07-27 after the version tag.",
+      "source": "https://github.com/better-auth/utils/blob/ef522888b7b2ff77ca13f0afb476dfae8f297862/LICENSE",
+      "license": "MIT",
+      "file": "@better-auth__utils-0.4.2.txt",
+      "sha256": "b5052b5db9a8720634e5243aaf019269ddd93c2e43f46a09f72b99e0004c8680"
+    },
+    {
+      "name": "@better-auth/utils",
+      "version": "0.5.0",
+      "commit": "f03c1c76aff7bfa3f4de4af47b112315c770a0d1",
+      "commit_provenance": "upstream v0.5.0 tag",
+      "license_commit": "ef522888b7b2ff77ca13f0afb476dfae8f297862",
+      "license_note": "MIT declared by the version; this upstream notice was added on 2026-07-27 after the version tag.",
+      "source": "https://github.com/better-auth/utils/blob/ef522888b7b2ff77ca13f0afb476dfae8f297862/LICENSE",
+      "license": "MIT",
+      "file": "@better-auth__utils-0.5.0.txt",
+      "sha256": "b5052b5db9a8720634e5243aaf019269ddd93c2e43f46a09f72b99e0004c8680"
+    },
+    {
+      "name": "drizzle-orm",
+      "version": "0.45.2",
+      "commit": "273c78071d4841b497f5144734b38294df7ec64b",
+      "commit_provenance": "upstream 0.45.2 tag",
+      "license_commit": "273c78071d4841b497f5144734b38294df7ec64b",
+      "license_note": "License at the version source revision.",
+      "source": "https://github.com/drizzle-team/drizzle-orm/blob/273c78071d4841b497f5144734b38294df7ec64b/LICENSE",
+      "license": "Apache-2.0",
+      "file": "drizzle-orm-0.45.2.txt",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    }
+  ]
+}

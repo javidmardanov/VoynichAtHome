@@ -1,0 +1,28 @@
+{
+  "repository": "https://github.com/greshko/naibbe-cipher",
+  "commit": "f2675ec5dd275268bc64dd48ea64fc0e0e9827a2",
+  "files": [
+    {
+      "path": "LICENSE",
+      "sha256": "e8fb5c1110aaa38618eab2013d1e7c5cae343efd21ea9859478df4930f7746bc"
+    },
+    {
+      "path": "naibbe_v2.py",
+      "sha256": "8a28fc7677a9a117ad79e8060b42059eb17069bea58d82ccf7ef1f0747ea06b7"
+    },
+    {
+      "path": "naibbe.py",
+      "sha256": "3f5e353d2c50f4e6a6b81567ca31cee4f0537a490b6346d054d26661648a6003"
+    },
+    {
+      "path": "decrypt_naibbe.py",
+      "sha256": "1c18514bbaba914989f1961f41a3930b7c1afe81d6db37b07b1dd7d9e6ea3b49"
+    },
+    {
+      "path": "references/naibbe_tables.csv",
+      "sha256": "4e7cfd54b7ec66515d39a51e11ec97e8e19b643b0b189124eebc3982e707dcec"
+    }
+  ],
+  "license": "LicenseRef-Naibbe-Modified-MIT",
+  "citation": "Greshko, Michael A. (2025). The Naibbe cipher: a substitution cipher that encrypts Latin and Italian as Voynich Manuscript-like ciphertext. Cryptologia. https://doi.org/10.1080/01611194.2025.2566408"
+}

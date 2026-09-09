@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voynichathome.org/contracts/v1/validation-record.schema.json",
+  "title": "Voynich@Home validation record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "validation_id",
+    "work_unit_id",
+    "experiment_digest",
+    "validated_at",
+    "validator_artifact_digest",
+    "equivalence_rule",
+    "result_ids",
+    "result_output_digests",
+    "quorum",
+    "decision",
+    "canonical_output_digest",
+    "reason"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "validation_id": {"$ref": "#/$defs/id"},
+    "work_unit_id": {"$ref": "#/$defs/digest"},
+    "experiment_digest": {"$ref": "#/$defs/digest"},
+    "validated_at": {"type": "string", "format": "date-time"},
+    "validator_artifact_digest": {"$ref": "#/$defs/digest"},
+    "equivalence_rule": {"type": "string", "minLength": 1, "maxLength": 500},
+    "result_ids": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/id"}
+    },
+    "result_output_digests": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/digest"}
+    },
+    "quorum": {"type": "integer", "minimum": 1, "maximum": 9},
+    "decision": {"enum": ["canonical", "disagreement", "invalid", "insufficient"]},
+    "canonical_output_digest": {
+      "oneOf": [
+        {"$ref": "#/$defs/digest"},
+        {"type": "null"}
+      ]
+    },
+    "reason": {"type": "string", "minLength": 1, "maxLength": 1000}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"decision": {"const": "canonical"}}, "required": ["decision"]},
+      "then": {
+        "properties": {
+          "canonical_output_digest": {"$ref": "#/$defs/digest"}
+        }
+      },
+      "else": {
+        "properties": {
+          "canonical_output_digest": {"type": "null"}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._:-]{2,127}$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    }
+  }
+}

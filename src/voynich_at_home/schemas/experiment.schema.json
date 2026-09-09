@@ -1,0 +1,271 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://voynichathome.org/contracts/v1/experiment.schema.json",
+  "title": "Voynich@Home registered experiment",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "experiment_id",
+    "version",
+    "title",
+    "mode",
+    "registered_at",
+    "proposers",
+    "exposure_disclosure",
+    "hypothesis",
+    "corpus",
+    "partitions",
+    "metrics",
+    "multiplicity",
+    "controls",
+    "search",
+    "randomness",
+    "worker",
+    "validation",
+    "stopping_rule",
+    "claim_gate"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "experiment_id": {"$ref": "#/$defs/id"},
+    "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "title": {"type": "string", "minLength": 1, "maxLength": 240},
+    "mode": {"enum": ["exploratory", "confirmatory"]},
+    "registered_at": {"type": "string", "format": "date-time"},
+    "proposers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "role", "conflicts"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1, "maxLength": 160},
+          "role": {"type": "string", "minLength": 1, "maxLength": 120},
+          "conflicts": {"type": "string", "minLength": 1, "maxLength": 500}
+        }
+      }
+    },
+    "exposure_disclosure": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"type": "string", "minLength": 1, "maxLength": 500}
+    },
+    "hypothesis": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["family", "statement", "falsifier", "nearest_alternatives"],
+      "properties": {
+        "family": {"type": "string", "minLength": 1, "maxLength": 120},
+        "statement": {"type": "string", "minLength": 1, "maxLength": 2000},
+        "falsifier": {"type": "string", "minLength": 1, "maxLength": 2000},
+        "nearest_alternatives": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1, "maxLength": 500}
+        }
+      }
+    },
+    "corpus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshot_digest", "view_ids"],
+      "properties": {
+        "snapshot_digest": {"$ref": "#/$defs/digest"},
+        "view_ids": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/id"}
+        }
+      }
+    },
+    "partitions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["manifest_digest", "grouping_units", "roles"],
+      "properties": {
+        "manifest_digest": {"$ref": "#/$defs/digest"},
+        "grouping_units": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "enum": ["work", "author", "leaf", "bifolium", "quire", "section", "currier-stratum", "proposed-hand"]
+          }
+        },
+        "roles": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {"enum": ["discovery", "validation", "confirmation", "control"]}
+        }
+      }
+    },
+    "metrics": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/metric"},
+      "contains": {
+        "type": "object",
+        "required": ["primary"],
+        "properties": {"primary": {"const": true}}
+      },
+      "minContains": 1,
+      "maxContains": 1
+    },
+    "multiplicity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claim_family_id", "procedure", "alpha"],
+      "properties": {
+        "claim_family_id": {"$ref": "#/$defs/id"},
+        "procedure": {"type": "string", "minLength": 1, "maxLength": 240},
+        "alpha": {"$ref": "#/$defs/decimal"}
+      }
+    },
+    "controls": {
+      "type": "array",
+      "minItems": 4,
+      "items": {"$ref": "#/$defs/control"},
+      "allOf": [
+        {"contains": {"properties": {"class": {"const": "positive"}}, "required": ["class"]}},
+        {"contains": {"properties": {"class": {"const": "negative"}}, "required": ["class"]}},
+        {"contains": {"properties": {"class": {"const": "adversarial"}}, "required": ["class"]}},
+        {"contains": {"properties": {"class": {"const": "implementation"}}, "required": ["class"]}}
+      ]
+    },
+    "search": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "implementation_digest", "candidate_count", "shard_size", "selection_rule"],
+      "properties": {
+        "algorithm": {"type": "string", "minLength": 1, "maxLength": 240},
+        "implementation_digest": {"$ref": "#/$defs/digest"},
+        "candidate_count": {"type": "integer", "minimum": 1},
+        "shard_size": {"type": "integer", "minimum": 1},
+        "selection_rule": {"type": "string", "minLength": 1, "maxLength": 1000}
+      }
+    },
+    "randomness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["algorithm", "master_seed_hex", "derivation"],
+      "properties": {
+        "algorithm": {"type": "string", "minLength": 1, "maxLength": 120},
+        "master_seed_hex": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "derivation": {"type": "string", "minLength": 1, "maxLength": 500}
+      }
+    },
+    "worker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_digest",
+        "output_schema_digest",
+        "entrypoint",
+        "deterministic",
+        "network_access",
+        "numeric_profile",
+        "resource_limits"
+      ],
+      "properties": {
+        "artifact_digest": {"$ref": "#/$defs/digest"},
+        "output_schema_digest": {"$ref": "#/$defs/digest"},
+        "entrypoint": {"type": "string", "minLength": 1, "maxLength": 240},
+        "deterministic": {"const": true},
+        "network_access": {"const": false},
+        "numeric_profile": {"type": "string", "minLength": 1, "maxLength": 240},
+        "resource_limits": {"$ref": "#/$defs/resource_limits"}
+      }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["equivalence", "initial_replicas", "quorum", "max_replicas", "reference_replay"],
+      "properties": {
+        "equivalence": {"type": "string", "minLength": 1, "maxLength": 500},
+        "initial_replicas": {"type": "integer", "minimum": 1, "maximum": 9},
+        "quorum": {"type": "integer", "minimum": 1, "maximum": 9},
+        "max_replicas": {"type": "integer", "minimum": 1, "maximum": 9},
+        "reference_replay": {"type": "string", "minLength": 1, "maxLength": 500}
+      }
+    },
+    "stopping_rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_work_units", "cpu_seconds_ceiling", "futility_rule"],
+      "properties": {
+        "max_work_units": {"type": "integer", "minimum": 1},
+        "cpu_seconds_ceiling": {"type": "integer", "minimum": 1},
+        "futility_rule": {"type": "string", "minLength": 1, "maxLength": 1000}
+      }
+    },
+    "claim_gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_tier", "success_conditions", "failure_language"],
+      "properties": {
+        "max_tier": {"type": "integer", "minimum": 0, "maximum": 4},
+        "success_conditions": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "string", "minLength": 1, "maxLength": 500}
+        },
+        "failure_language": {"type": "string", "minLength": 1, "maxLength": 1000}
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._:-]{2,127}$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "decimal": {
+      "type": "string",
+      "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+    },
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metric_id", "primary", "implementation_digest", "direction", "threshold", "smallest_effect"],
+      "properties": {
+        "metric_id": {"$ref": "#/$defs/id"},
+        "primary": {"type": "boolean"},
+        "implementation_digest": {"$ref": "#/$defs/digest"},
+        "direction": {"enum": ["higher", "lower", "two-sided", "equivalence"]},
+        "threshold": {"$ref": "#/$defs/decimal"},
+        "smallest_effect": {"$ref": "#/$defs/decimal"},
+        "unit": {"type": "string", "minLength": 1, "maxLength": 80}
+      }
+    },
+    "control": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["control_id", "class", "artifact_digest", "expected_behavior", "failure_consequence"],
+      "properties": {
+        "control_id": {"$ref": "#/$defs/id"},
+        "class": {"enum": ["positive", "near-positive", "negative", "adversarial", "implementation"]},
+        "artifact_digest": {"$ref": "#/$defs/digest"},
+        "expected_behavior": {"type": "string", "minLength": 1, "maxLength": 1000},
+        "failure_consequence": {"type": "string", "minLength": 1, "maxLength": 1000}
+      }
+    },
+    "resource_limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cpu_seconds", "memory_bytes", "disk_bytes", "output_bytes", "wall_seconds"],
+      "properties": {
+        "cpu_seconds": {"type": "integer", "minimum": 1},
+        "memory_bytes": {"type": "integer", "minimum": 1048576},
+        "disk_bytes": {"type": "integer", "minimum": 0},
+        "output_bytes": {"type": "integer", "minimum": 1},
+        "wall_seconds": {"type": "integer", "minimum": 1}
+      }
+    }
+  }
+}

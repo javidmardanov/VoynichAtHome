@@ -1,0 +1,70 @@
+{
+  "version": "vah-recovery-sources-1",
+  "note": "Separate works, not separate chunks of one work. Classical Latin, medieval Italian poetry and early modern development plays; modern Italian evaluation tests domain shift, not medieval language identification. Evaluation texts are not fetched until method settings are frozen.",
+  "sources": [
+    {
+      "id": "pg-218",
+      "work_id": "218",
+      "language": "latin",
+      "split": "training",
+      "title": "Caesar, De Bello Gallico I\u2013IV",
+      "url": "https://www.gutenberg.org/cache/epub/218/pg218.txt",
+      "rights": "Public domain in the USA; retain Project Gutenberg license from original download. Check local rights before redistribution elsewhere.",
+      "rights_url": "https://www.gutenberg.org/ebooks/218",
+      "sha256": "84ac8411841a4d8f5f4a49b6a2cd1f466917c6a5af72916d5e0b2b1ecb2f659c"
+    },
+    {
+      "id": "pg-226",
+      "work_id": "226",
+      "language": "latin",
+      "split": "development",
+      "title": "Cicero, Catilinarian orations",
+      "url": "https://www.gutenberg.org/cache/epub/226/pg226.txt",
+      "rights": "Public domain in the USA; retain Project Gutenberg license from original download. Check local rights before redistribution elsewhere.",
+      "rights_url": "https://www.gutenberg.org/ebooks/226",
+      "sha256": "d35576eee076806a236f7f9edf8c1a07462a4102084e025076f6227d8847afdb"
+    },
+    {
+      "id": "pg-1000",
+      "work_id": "1000",
+      "language": "italian",
+      "split": "training",
+      "title": "Dante, Divina Commedia",
+      "url": "https://www.gutenberg.org/cache/epub/1000/pg1000.txt",
+      "rights": "Public domain in the USA; retain Project Gutenberg license from original download. Check local rights before redistribution elsewhere.",
+      "rights_url": "https://www.gutenberg.org/ebooks/1000",
+      "sha256": "4669dcc00ee61ceffe92d871e61ea430cec87b35cbab24f19a4c0b1c7da521b2"
+    },
+    {
+      "id": "pg-56498",
+      "work_id": "56498",
+      "language": "italian",
+      "split": "development",
+      "title": "Machiavelli, La mandragola / La Clizia / Belfagor",
+      "url": "https://www.gutenberg.org/cache/epub/56498/pg56498.txt",
+      "rights": "Public domain in the USA; retain Project Gutenberg license from original download. Check local rights before redistribution elsewhere.",
+      "rights_url": "https://www.gutenberg.org/ebooks/56498",
+      "sha256": "b149ce46461b057e8cf920c9101235416e30a13cd547fddfe68154edbbceef61"
+    },
+    {
+      "id": "pg-227",
+      "work_id": "227",
+      "language": "latin",
+      "split": "evaluation",
+      "title": "Virgil, Aeneid",
+      "url": "https://www.gutenberg.org/cache/epub/227/pg227.txt",
+      "rights": "Public domain in the USA; retain Project Gutenberg license from original download. Check local rights before redistribution elsewhere.",
+      "rights_url": "https://www.gutenberg.org/ebooks/227"
+    },
+    {
+      "id": "pg-45334",
+      "work_id": "45334",
+      "language": "italian",
+      "split": "evaluation",
+      "title": "Manzoni, I promessi sposi",
+      "url": "https://www.gutenberg.org/cache/epub/45334/pg45334.txt",
+      "rights": "Public domain in the USA; retain Project Gutenberg license from original download. Check local rights before redistribution elsewhere.",
+      "rights_url": "https://www.gutenberg.org/ebooks/45334"
+    }
+  ]
+}

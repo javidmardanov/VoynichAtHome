@@ -1,0 +1,38 @@
+{
+  "bagofwords.job.json": {
+    "result_hash": "sha256:1cf6452a49bf849922028621e0bebc603e67e477e08f1259a9810b2de8f2a0c5",
+    "distance_median": 16.638561690812615,
+    "specimen_seed": 11,
+    "specimen_distance": 16.260428210027573
+  },
+  "charmarkov.job.json": {
+    "result_hash": "sha256:05a7985830e0a9e2ab1b8509720bd1b7f70e0e5e365da273b2860f9631467820",
+    "distance_median": 17.572827326611392,
+    "specimen_seed": 1,
+    "specimen_distance": 17.568784623725435
+  },
+  "gibberish.job.json": {
+    "result_hash": "sha256:471e4fac05f9579d33e7849d421ac57ff0265395f96fb5d7d3ddefe103d2b3f4",
+    "distance_median": 46.06387982127531,
+    "specimen_seed": 2,
+    "specimen_distance": 46.03283983096592
+  },
+  "selfcite-full-layout.job.json": {
+    "result_hash": "sha256:7ba4f15154beb43c3946ca696240001e15635f67a3cc37996a3cba05597ebfeb",
+    "distance_median": 56.029135943354035,
+    "specimen_seed": 8,
+    "specimen_distance": 55.985156444046524
+  },
+  "selfcite.job.json": {
+    "result_hash": "sha256:d4021af9240c26d0d282055c1300ec18b7135f749114edb068b031f9743e45e3",
+    "distance_median": 60.76021266824374,
+    "specimen_seed": 0,
+    "specimen_distance": 57.85946809823727
+  },
+  "slotgram.job.json": {
+    "result_hash": "sha256:29ab6d1d0dd234f7e65de2990ef1ff4564dce8b3857a2a308b3362a2b9e4b266",
+    "distance_median": 31.045748680172917,
+    "specimen_seed": 4,
+    "specimen_distance": 30.72753446019142
+  }
+}

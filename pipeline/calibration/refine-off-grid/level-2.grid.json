@@ -1,0 +1,33 @@
+{
+  "experiment_id": "calibration-selfcite-v1",
+  "family": "selfcite",
+  "fixed": {},
+  "axes": {
+    "max_len": [
+      8,
+      9,
+      10
+    ],
+    "p_modify": [
+      0.725,
+      0.75,
+      0.775
+    ],
+    "w_delete": [
+      2.25,
+      2.5,
+      2.75
+    ],
+    "window_lines": [
+      2,
+      3,
+      4
+    ]
+  },
+  "replicates": 8,
+  "layout_tokens": 0,
+  "integer_axes": [
+    "window_lines",
+    "max_len"
+  ]
+}

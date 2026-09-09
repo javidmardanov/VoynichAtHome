@@ -1,0 +1,23 @@
+# Determinism guard rails for the science kernel.
+# Transcendental functions must come from the `libm` crate so that native and
+# wasm32 builds produce identical bits. Hash maps have platform-dependent
+# iteration order and are banned from science code.
+disallowed-methods = [
+  { path = "f64::ln", reason = "use libm::log for bit-identical results on wasm32 and native" },
+  { path = "f64::log2", reason = "use libm::log2" },
+  { path = "f64::log10", reason = "use libm::log10" },
+  { path = "f64::exp", reason = "use libm::exp" },
+  { path = "f64::powf", reason = "use libm::pow" },
+  { path = "f64::powi", reason = "use repeated multiplication or libm::pow" },
+  { path = "f64::sin", reason = "use libm::sin" },
+  { path = "f64::cos", reason = "use libm::cos" },
+  { path = "f64::tanh", reason = "use libm::tanh" },
+  { path = "f64::mul_add", reason = "fused multiply-add is not bit-portable" },
+  { path = "f32::ln", reason = "science code uses f64 + libm only" },
+  { path = "f32::exp", reason = "science code uses f64 + libm only" },
+  { path = "f32::powf", reason = "science code uses f64 + libm only" },
+]
+disallowed-types = [
+  { path = "std::collections::HashMap", reason = "iteration order is not deterministic; use BTreeMap" },
+  { path = "std::collections::HashSet", reason = "iteration order is not deterministic; use BTreeSet" },
+]

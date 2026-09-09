@@ -1,0 +1,13 @@
+{
+  "version": "vah-recovery-panel-1",
+  "split": "development",
+  "cases": 1,
+  "languages": ["latin", "italian"],
+  "lengths": [1000, 5000, 20000],
+  "encodings": ["substitution", "balanced-homophonic", "naibbe-global-permutation"],
+  "controls": ["message", "shuffled", "generated-unigram"],
+  "starts": [1, 8, 64],
+  "iterations": 10000,
+  "beam_width": 16,
+  "timeout_seconds": 60
+}

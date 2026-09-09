@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "const": "vah-generation-input-1"
+    },
+    "experiment": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "job": {
+      "type": "object",
+      "properties": {
+        "work_unit": {
+          "type": "object",
+          "properties": {
+            "schema_version": {
+              "type": "string",
+              "const": "vah-work-unit-0.2"
+            },
+            "experiment_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            },
+            "family": {
+              "type": "string",
+              "enum": [
+                "gibberish",
+                "bagofwords",
+                "charmarkov",
+                "selfcite",
+                "slotgram"
+              ]
+            },
+            "params": {
+              "type": "object",
+              "propertyNames": {
+                "type": "string"
+              },
+              "additionalProperties": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean",
+                  "null"
+                ]
+              }
+            },
+            "fingerprint_version": {
+              "type": "string",
+              "const": "fingerprint-v1"
+            },
+            "target_digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            "layout_digest": {
+              "type": "string",
+              "pattern": "^sha256:[0-9a-f]{64}$"
+            },
+            "resources_digest": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^sha256:[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "seed_start": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967287
+            },
+            "seed_count": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 8
+            },
+            "metric": {
+              "type": "string",
+              "enum": [
+                "z",
+                "mahalanobis"
+              ]
+            }
+          },
+          "required": [
+            "schema_version",
+            "experiment_id",
+            "family",
+            "params",
+            "fingerprint_version",
+            "target_digest",
+            "layout_digest",
+            "resources_digest",
+            "seed_start",
+            "seed_count"
+          ],
+          "additionalProperties": false
+        },
+        "target": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        },
+        "layout": {
+          "type": "object",
+          "properties": {
+            "lines": {
+              "minItems": 1,
+              "maxItems": 10000,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "words": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 65535
+                  },
+                  "para_start": {
+                    "type": "boolean"
+                  },
+                  "para_end": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "words",
+                  "para_start",
+                  "para_end"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": [
+            "lines"
+          ],
+          "additionalProperties": false
+        },
+        "resources": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "work_unit",
+        "target",
+        "layout"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "version",
+    "experiment",
+    "job"
+  ],
+  "additionalProperties": false,
+  "$id": "urn:voynich:contracts:v1:generation",
+  "x-semantic-validation": "See platform/src/lib/contracts.ts and the Rust kernel; schema alone does not establish valid identities, scores, or execution."
+}

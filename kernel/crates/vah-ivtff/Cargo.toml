@@ -1,0 +1,10 @@
+[package]
+name = "vah-ivtff"
+description = "Parser for IVTFF 2.0 Voynich transliteration files, written from the published format description"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+vah-corpus = { path = "../vah-corpus" }

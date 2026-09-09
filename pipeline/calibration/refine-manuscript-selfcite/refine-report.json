@@ -1,0 +1,190 @@
+{
+  "schema_version": "vah-refine-0.1",
+  "experiment_id": "calibration-selfcite-v1",
+  "family": "selfcite",
+  "target_digest": "sha256:0dcdc8ee62c69e98c6bd23425322e38e121a5427478374db37f147ed00eb4d4e",
+  "shrink": 0.5,
+  "epsilon_median": null,
+  "levels": [
+    {
+      "level": 0,
+      "grid_digest": "sha256:11497530df8da39ac7ec28277ccfc7206ac2635d989353b36951ef16bd164e2d",
+      "points": 216,
+      "replicates": 8,
+      "best_index": 67,
+      "best_params": {
+        "max_len": 6,
+        "p_modify": 1.0,
+        "w_delete": 2,
+        "window_lines": 8
+      },
+      "best_median": 49.5051142872569,
+      "best_distances": [
+        49.48654043836635,
+        48.18748559209902,
+        49.66798966496754,
+        49.25736839274495,
+        49.52368813614746,
+        50.33207123292368,
+        50.36302549681878,
+        47.786654922166875
+      ],
+      "compatible": [],
+      "steps": [
+        [
+          "max_len",
+          2.0
+        ],
+        [
+          "p_modify",
+          0.1
+        ],
+        [
+          "w_delete",
+          1.0
+        ],
+        [
+          "window_lines",
+          2.3333333333333335
+        ]
+      ]
+    },
+    {
+      "level": 1,
+      "grid_digest": "sha256:73ca18831d9c3149b4bdf4b29b078f5bcd2841dd2e23de9d2972a829c1d83d78",
+      "points": 24,
+      "replicates": 8,
+      "best_index": 16,
+      "best_params": {
+        "max_len": 7,
+        "p_modify": 0.95,
+        "w_delete": 2.5,
+        "window_lines": 7
+      },
+      "best_median": 48.34588445830039,
+      "best_distances": [
+        48.78332270690328,
+        46.9711740922345,
+        48.31138796743874,
+        48.03860374650344,
+        48.87529408886108,
+        48.492908815273246,
+        47.82767369965222,
+        48.380380949162046
+      ],
+      "compatible": [],
+      "steps": [
+        [
+          "max_len",
+          1.0
+        ],
+        [
+          "p_modify",
+          0.05
+        ],
+        [
+          "w_delete",
+          0.5
+        ],
+        [
+          "window_lines",
+          1.0
+        ]
+      ]
+    },
+    {
+      "level": 2,
+      "grid_digest": "sha256:dd97f196eaf14c3e33f4b0ab2cc40ae873fb54019c017c2a381038d905df933f",
+      "points": 81,
+      "replicates": 8,
+      "best_index": 27,
+      "best_params": {
+        "max_len": 7,
+        "p_modify": 0.925,
+        "w_delete": 2.25,
+        "window_lines": 6
+      },
+      "best_median": 48.11958914298606,
+      "best_distances": [
+        48.21745822184892,
+        46.47345004433406,
+        48.97269224733097,
+        47.70574503625609,
+        48.021720064123194,
+        47.87290247978121,
+        49.36631498857147,
+        49.94419646114068
+      ],
+      "compatible": [],
+      "steps": [
+        [
+          "max_len",
+          1.0
+        ],
+        [
+          "p_modify",
+          0.025
+        ],
+        [
+          "w_delete",
+          0.25
+        ],
+        [
+          "window_lines",
+          1.0
+        ]
+      ]
+    },
+    {
+      "level": 3,
+      "grid_digest": "sha256:4d269f435128e9a5ce6e491c8b5b5900568249b9c1f0f59a9e31e31807403737",
+      "points": 81,
+      "replicates": 8,
+      "best_index": 40,
+      "best_params": {
+        "max_len": 7,
+        "p_modify": 0.925,
+        "w_delete": 2.25,
+        "window_lines": 6
+      },
+      "best_median": 48.11958914298606,
+      "best_distances": [
+        48.21745822184892,
+        46.47345004433406,
+        48.97269224733097,
+        47.70574503625609,
+        48.021720064123194,
+        47.87290247978121,
+        49.36631498857147,
+        49.94419646114068
+      ],
+      "compatible": [],
+      "steps": [
+        [
+          "max_len",
+          1.0
+        ],
+        [
+          "p_modify",
+          0.0125
+        ],
+        [
+          "w_delete",
+          0.125
+        ],
+        [
+          "window_lines",
+          1.0
+        ]
+      ]
+    }
+  ],
+  "final_best_params": {
+    "max_len": 7,
+    "p_modify": 0.925,
+    "w_delete": 2.25,
+    "window_lines": 6
+  },
+  "final_best_median": 48.11958914298606,
+  "simulations": 3216
+}

@@ -1,0 +1,13 @@
+[package]
+name = "vah-wasm"
+description = "WebAssembly module of the science kernel: a plain C ABI over vah-core, no JavaScript glue generator required"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+vah-core = { path = "../vah-core" }

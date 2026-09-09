@@ -1,0 +1,48 @@
+name: Research experiment proposal
+description: Propose a bounded, reproducible investigation.
+title: "[Experiment] "
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question and possible outcomes
+      description: What exact claim is tested? What would success, failure, and an operational interruption mean?
+    validations:
+      required: true
+  - type: textarea
+    id: sources
+    attributes:
+      label: Source data, rights, and previous exposure
+      description: Identify source works/transcription versions, hashes, uncertainty rules, licenses, and previous use during development.
+    validations:
+      required: true
+  - type: textarea
+    id: method
+    attributes:
+      label: Reproducible method and work contract
+      description: Supply code, parameters, seed rules, numeric profile, fixed budgets, and unchanged decoder output where relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: controls
+    attributes:
+      label: Controls and recovery evidence
+      description: Specify positive controls, shuffled/generated comparisons, source-work splits, failure reporting, and evidence justifying any manuscript search.
+    validations:
+      required: true
+  - type: textarea
+    id: decision
+    attributes:
+      label: Metrics, computation limit, and stopping rule
+      description: Freeze the selection rule and define how additional computation will be judged useful.
+    validations:
+      required: true
+  - type: checkboxes
+    id: disclosure
+    attributes:
+      label: Disclosure
+      options:
+        - label: I have distinguished exploratory work from concealed or independently administered evaluation.
+          required: true
+        - label: I will publish failed conditions and operational failures separately.
+          required: true

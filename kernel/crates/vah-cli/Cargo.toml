@@ -1,0 +1,22 @@
+[package]
+name = "vah-cli"
+description = "Native command-line front end of the Voynich@Home science kernel"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "voynich"
+path = "src/main.rs"
+
+[dependencies]
+vah-core = { path = "../vah-core" }
+vah-ivtff = { path = "../vah-ivtff" }
+serde = { workspace = true }
+serde_json = { workspace = true }
+clap = { version = "4", features = ["derive"] }
+
+[dev-dependencies]
+vah-stats = { path = "../vah-stats" }
+vah-corpus = { path = "../vah-corpus" }

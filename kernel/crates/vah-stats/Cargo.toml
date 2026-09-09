@@ -1,0 +1,12 @@
+[package]
+name = "vah-stats"
+description = "Fingerprint statistics of a text corpus, computed bit-identically on native and wasm32 targets"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+
+[dependencies]
+vah-corpus = { path = "../vah-corpus" }
+serde = { workspace = true }
+libm = { workspace = true }

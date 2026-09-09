@@ -1,0 +1,185 @@
+{
+  "_comment": "RFC 8785 (JCS) conformance vectors shared by the Rust kernel and the Python contract tooling. `numbers` give IEEE-754 binary64 bit patterns (big-endian hex) and the expected ES6 string. Derived from the ES6 Number.prototype.toString rules and the RFC 8785 section 3.2.3 example; confirm against the reference implementation (cyberphone/json-canonicalization) from an environment that can reach it.",
+  "vectors": [
+    {
+      "name": "rfc8785-section-3.2.3-example",
+      "input": {
+        "numbers": [
+          333333333.3333333,
+          1e+30,
+          4.5,
+          0.002,
+          1e-27
+        ],
+        "string": "\u20ac$\u000f\nA'B\"\\\\\"/",
+        "literals": [
+          null,
+          true,
+          false
+        ]
+      },
+      "expected": "{\"literals\":[null,true,false],\"numbers\":[333333333.3333333,1e+30,4.5,0.002,1e-27],\"string\":\"\u20ac$\\u000f\\nA'B\\\"\\\\\\\\\\\"/\"}"
+    },
+    {
+      "name": "utf16-key-order",
+      "input": {
+        "\ud834\udd1e": 1,
+        "\uff5e": 2,
+        "a": 3
+      },
+      "expected": "{\"a\":3,\"\ud834\udd1e\":1,\"\uff5e\":2}",
+      "note": "UTF-16 code-unit order: U+1D11E is D834 DD1E and sorts before U+FF5E; UTF-8 byte order would put U+FF5E first."
+    },
+    {
+      "name": "nested-and-negative-zero",
+      "input": {
+        "b": {
+          "y": [
+            1,
+            2
+          ],
+          "x": -0.0
+        },
+        "a": "\t\u0001"
+      },
+      "expected": "{\"a\":\"\\t\\u0001\",\"b\":{\"x\":0,\"y\":[1,2]}}"
+    },
+    {
+      "name": "work-unit-like",
+      "input": {
+        "schema_version": "vah-work-unit-0.2",
+        "seed_start": 0,
+        "seed_count": 4,
+        "params": {
+          "p_modify": 0.85,
+          "window_lines": 4,
+          "alphabet": "ocheydaiklrstqnmpfg"
+        },
+        "family": "selfcite",
+        "resources_digest": null
+      },
+      "expected": "{\"family\":\"selfcite\",\"params\":{\"alphabet\":\"ocheydaiklrstqnmpfg\",\"p_modify\":0.85,\"window_lines\":4},\"resources_digest\":null,\"schema_version\":\"vah-work-unit-0.2\",\"seed_count\":4,\"seed_start\":0}"
+    },
+    {
+      "name": "empty-containers",
+      "input": {
+        "z": [],
+        "a": {},
+        "m": ""
+      },
+      "expected": "{\"a\":{},\"m\":\"\",\"z\":[]}"
+    }
+  ],
+  "numbers": [
+    {
+      "hex": "0000000000000000",
+      "value_repr": "0.0",
+      "expected": "0"
+    },
+    {
+      "hex": "8000000000000000",
+      "value_repr": "-0.0",
+      "expected": "0"
+    },
+    {
+      "hex": "3ff0000000000000",
+      "value_repr": "1.0",
+      "expected": "1"
+    },
+    {
+      "hex": "4024000000000000",
+      "value_repr": "10.0",
+      "expected": "10"
+    },
+    {
+      "hex": "3fb999999999999a",
+      "value_repr": "0.1",
+      "expected": "0.1"
+    },
+    {
+      "hex": "4012000000000000",
+      "value_repr": "4.5",
+      "expected": "4.5"
+    },
+    {
+      "hex": "3f60624dd2f1a9fc",
+      "value_repr": "0.002",
+      "expected": "0.002"
+    },
+    {
+      "hex": "3eb0c6f7a0b5ed8d",
+      "value_repr": "1e-06",
+      "expected": "0.000001"
+    },
+    {
+      "hex": "3e7ad7f29abcaf48",
+      "value_repr": "1e-07",
+      "expected": "1e-7"
+    },
+    {
+      "hex": "3ea0c6f7a0b5ed8d",
+      "value_repr": "5e-07",
+      "expected": "5e-7"
+    },
+    {
+      "hex": "444b1ae4d6e2ef50",
+      "value_repr": "1e+21",
+      "expected": "1e+21"
+    },
+    {
+      "hex": "46293e5939a08cea",
+      "value_repr": "1e+30",
+      "expected": "1e+30"
+    },
+    {
+      "hex": "3a53ce9a36f23c10",
+      "value_repr": "1e-27",
+      "expected": "1e-27"
+    },
+    {
+      "hex": "441ac53a7e04bcda",
+      "value_repr": "1.2345678901234568e+20",
+      "expected": "123456789012345680000"
+    },
+    {
+      "hex": "4450bb448ec2f608",
+      "value_repr": "1.2345678901234568e+21",
+      "expected": "1.2345678901234568e+21"
+    },
+    {
+      "hex": "41b3de4355555555",
+      "value_repr": "333333333.3333333",
+      "expected": "333333333.3333333"
+    },
+    {
+      "hex": "4340000000000000",
+      "value_repr": "9007199254740992.0",
+      "expected": "9007199254740992"
+    },
+    {
+      "hex": "bff8000000000000",
+      "value_repr": "-1.5",
+      "expected": "-1.5"
+    },
+    {
+      "hex": "0000000000000001",
+      "value_repr": "5e-324",
+      "expected": "5e-324"
+    },
+    {
+      "hex": "7fefffffffffffff",
+      "value_repr": "1.7976931348623157e+308",
+      "expected": "1.7976931348623157e+308"
+    },
+    {
+      "hex": "3feb333333333333",
+      "value_repr": "0.85",
+      "expected": "0.85"
+    },
+    {
+      "hex": "4000dfd8adab9f56",
+      "value_repr": "2.1093",
+      "expected": "2.1093"
+    }
+  ]
+}

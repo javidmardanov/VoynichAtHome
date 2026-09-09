@@ -1,0 +1,173 @@
+{
+  "version": "vah-development-summary-1",
+  "runs": 3510,
+  "message_cases": 18,
+  "rows": [
+    {
+      "language": "latin",
+      "family": "substitution",
+      "length": 1000,
+      "beam": 0.599,
+      "1": 1,
+      "8": 1,
+      "64": 1
+    },
+    {
+      "language": "latin",
+      "family": "balanced-homophonic",
+      "length": 1000,
+      "beam": 0.934,
+      "1": 1,
+      "8": 1,
+      "64": 1
+    },
+    {
+      "language": "latin",
+      "family": "naibbe-global-permutation",
+      "length": 1000,
+      "beam": 1,
+      "1": 0.033,
+      "8": 1,
+      "64": 1
+    },
+    {
+      "language": "latin",
+      "family": "substitution",
+      "length": 5000,
+      "beam": 1,
+      "1": 0,
+      "8": 1,
+      "64": 1
+    },
+    {
+      "language": "latin",
+      "family": "balanced-homophonic",
+      "length": 5000,
+      "beam": 0.8336,
+      "1": 1,
+      "8": 1,
+      "64": 1
+    },
+    {
+      "language": "latin",
+      "family": "naibbe-global-permutation",
+      "length": 5000,
+      "beam": 1,
+      "1": 0.0198,
+      "8": 1,
+      "64": 1
+    },
+    {
+      "language": "latin",
+      "family": "substitution",
+      "length": 20000,
+      "beam": 1,
+      "1": 1,
+      "8": 1,
+      "64": 1
+    },
+    {
+      "language": "latin",
+      "family": "balanced-homophonic",
+      "length": 20000,
+      "beam": 0.4521,
+      "1": 0.99995,
+      "8": 0.99995,
+      "64": 0.99995
+    },
+    {
+      "language": "latin",
+      "family": "naibbe-global-permutation",
+      "length": 20000,
+      "beam": 1,
+      "1": 1,
+      "8": 1,
+      "64": 1
+    },
+    {
+      "language": "italian",
+      "family": "substitution",
+      "length": 1000,
+      "beam": 1,
+      "1": 1,
+      "8": 1,
+      "64": 1
+    },
+    {
+      "language": "italian",
+      "family": "balanced-homophonic",
+      "length": 1000,
+      "beam": 0.618,
+      "1": 1,
+      "8": 1,
+      "64": 1
+    },
+    {
+      "language": "italian",
+      "family": "naibbe-global-permutation",
+      "length": 1000,
+      "beam": 1,
+      "1": 1,
+      "8": 1,
+      "64": 1
+    },
+    {
+      "language": "italian",
+      "family": "substitution",
+      "length": 5000,
+      "beam": 1,
+      "1": 1,
+      "8": 1,
+      "64": 1
+    },
+    {
+      "language": "italian",
+      "family": "balanced-homophonic",
+      "length": 5000,
+      "beam": 1,
+      "1": 1,
+      "8": 1,
+      "64": 1
+    },
+    {
+      "language": "italian",
+      "family": "naibbe-global-permutation",
+      "length": 5000,
+      "beam": 1,
+      "1": 1,
+      "8": 1,
+      "64": 1
+    },
+    {
+      "language": "italian",
+      "family": "substitution",
+      "length": 20000,
+      "beam": 1,
+      "1": 1,
+      "8": 1,
+      "64": 1
+    },
+    {
+      "language": "italian",
+      "family": "balanced-homophonic",
+      "length": 20000,
+      "beam": 0.7881,
+      "1": 1,
+      "8": 1,
+      "64": 1
+    },
+    {
+      "language": "italian",
+      "family": "naibbe-global-permutation",
+      "length": 20000,
+      "beam": 1,
+      "1": 1,
+      "8": 1,
+      "64": 1
+    }
+  ],
+  "report_sha256": "64d2c4f2f84c487f7b9f31869df6b60010a37f4d8672a0b8e841dbf8937297fc",
+  "source_revision": "7b23264e9d2cbd33825b6cd5f17eea0fe36548c9",
+  "kernel_digest": "sha256:6760f19bb9a4760a817c62fb012023771e9c4e1b5b5e6797f99248d2d454645b",
+  "answers_commitment": "sha256:6b3f56b3dcb823ae99ad448d107437a70240024f370c762a171759294733ad8b"
+}

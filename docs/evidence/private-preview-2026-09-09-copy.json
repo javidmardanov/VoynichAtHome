@@ -1,0 +1,129 @@
+{
+  "version": "vah-copy-review-1",
+  "source_commit": "1d3462f5c775a1e465cc91210297483d829c5de8",
+  "scope": {
+    "page_routes": 14,
+    "shared_layout": true,
+    "browser_messages": true,
+    "server_errors": true
+  },
+  "agents": {
+    "editor": "GPT-5.6-Sol",
+    "factual_reviewer": "GPT-5.6-Terra",
+    "evidence_reviewer": "GPT-5.6-Luna",
+    "integration_review": "root"
+  },
+  "references": [
+    "https://github.com/hardikpandya/stop-slop",
+    "https://impeccable.style/docs/clarify/",
+    "https://impeccable.style/docs/distill/"
+  ],
+  "local": {
+    "source_checks": "0 errors and 0 warnings",
+    "platform_tests": 46,
+    "production_build": "passed",
+    "cli_package": "passed",
+    "worker_package": "passed",
+    "browser": {
+      "passed": 31,
+      "planned_skips": 8,
+      "unexpected": 0,
+      "flaky": 0,
+      "duration_ms": 380344.543
+    }
+  },
+  "build_reuse": {
+    "original_source_commit": "2943a37ae2752d09b26c94773c9cf822b92a89af",
+    "only_final_change": "Account-deletion test selector; git diff confirmed all other files identical.",
+    "platform_src_tree": "8a9450261f0ccc1121b09420f7d227ab7d98c6a5"
+  },
+  "retained_failures": [
+    "A premature local preview visit created a limits row before browser fixture initialization. The initial failure is preserved; the test was rerun after setup.",
+    "The revised account-deletion label was missed by the initial selector inventory. The failure trace is preserved; the selector was corrected and all engines passed."
+  ],
+  "scientific_scope": "Known development figures, consent, privacy facts, and study limitations preserved. The frozen evaluation continued; no answers or partial scientific outcomes were inspected.",
+  "archive_sha256": "8b8d908cbff061fb918aba8192ff91f6713c904de7bd4e02b5b486be899b521b",
+  "site_version": {
+    "id": "appgprj_6a9bde3c663c81918f210fd74920a10a~appgver_3e0330559aa48191b4323f7ace273a65",
+    "project_id": "appgprj_6a9bde3c663c81918f210fd74920a10a",
+    "version_number": 9,
+    "source": {
+      "commit_sha": "1d3462f5c775a1e465cc91210297483d829c5de8"
+    },
+    "archive_storage": {
+      "archive_format": "tar",
+      "sediment_file_id": "file_00000000f91481f59a3c29eb9b8ab789",
+      "content_hash": "sha256:e8466d0563b53959e7aaba34bdb11bf5257a9f9a6fa8c76ebc8ecf113bbe1d17",
+      "size_bytes": 14632960,
+      "file_count": 269
+    },
+    "screenshot_url": null
+  },
+  "deployment": {
+    "id": "appgdep_6aa0e8d1a3b48191be107ad9595b5f10",
+    "project_id": "appgprj_6a9bde3c663c81918f210fd74920a10a",
+    "title": "Voynich@home",
+    "version_id": "appgprj_6a9bde3c663c81918f210fd74920a10a~appgver_3e0330559aa48191b4323f7ace273a65",
+    "type": "publish",
+    "status": "succeeded",
+    "url": "https://voynich-at-home.jenobi.chatgpt.site",
+    "screenshot_asset_pointer": null,
+    "provider_deployment_id": "site---6a9bde3c663c81918f210fd74920a10a",
+    "failure_message": null,
+    "env_set_revision": 3,
+    "updated_at": "2026-09-09T05:04:32.076408+00:00"
+  },
+  "ci": {
+    "source_commit": "1d3462f5c775a1e465cc91210297483d829c5de8",
+    "all_six_runs": "success",
+    "runs": {
+      "pr_contracts": 34312747069,
+      "pr_kernel": 34312747015,
+      "pr_platform": 34312747033,
+      "push_contracts": 34312744274,
+      "push_kernel": 34312744365,
+      "push_platform": 34312744335
+    },
+    "platform_os": [
+      "Ubuntu",
+      "Windows",
+      "macOS"
+    ],
+    "pr_browser": {
+      "passed": 31,
+      "skipped": 8,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "push_browser": {
+      "passed": 31,
+      "skipped": 8,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "load": {
+      "computing_clients": 25,
+      "waiting_clients": 5,
+      "checked_clients": 25,
+      "credit_per_client": 4096,
+      "pr_elapsed_ms": 58742,
+      "push_elapsed_ms": 80849,
+      "scope": "Local Chromium and Miniflare in CI, not deployed load or independent-machine validation."
+    }
+  },
+  "live": {
+    "http_checks": 20,
+    "invariants": 8,
+    "all_passed": true,
+    "revised_copy_on_all_public_pages": true,
+    "assignments_enabled": false,
+    "campaigns": 0,
+    "scheduled_success_observed": false,
+    "owner_binding_complete": false
+  },
+  "limitations": [
+    "This remains an owner-private development preview.",
+    "No hosted computation load, autonomous scheduled success, complete hosted restoration, physical-device acceptance, evaluated recovery rate, or decipherment was established.",
+    "Opening the deployed page was queued by Codex for this task; no live UI owner authentication was completed."
+  ]
+}
