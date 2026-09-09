@@ -21,6 +21,12 @@ test('actual tab visibility pauses, resumes, and honors manual controls',async({
   page.on('request',request=>{if(request.method()==='POST'&&new URL(request.url()).pathname==='/api/v1/work')workPosts++;});
   const other=await context.newPage();await other.goto('about:blank');
   await page.goto('/contribute');await page.bringToFront();
+  // Playwright forces every tab to appear focused. Remove that override so
+  // bringToFront exercises Chromium's native visibility events.
+  for(const tab of [page,other]){
+    const session=await context.newCDPSession(tab);
+    await session.send('Emulation.setFocusEmulationEnabled',{enabled:false});
+  }
   await expect.poll(()=>page.evaluate(()=>document.visibilityState)).toBe('visible');
   await page.evaluate(()=>{
     (window as any).__visibilityEvidence=[];
@@ -72,7 +78,7 @@ test('actual tab visibility pauses, resumes, and honors manual controls',async({
   await mkdir('test-results',{recursive:true});
   await writeFile('test-results/visibility-evidence.json',JSON.stringify({
     version:'vah-browser-visibility-evidence-1',recorded_at:new Date().toISOString(),
-    environment:{platform:process.platform,headed:true,display:process.platform==='linux'?'Xvfb':'desktop',physical_device:false},
+    environment:{platform:process.platform,headed:true,display:process.platform==='linux'?'Xvfb':'desktop',focus_emulation:false,physical_device:false},
     browser:{name:browserName,version:browser.version()},native_visibility_transitions:transitions,
     checks:{work_post_count:workPosts,default_processing_time:25,selected_processing_time:10,
       checkpoint_before_hide:beforeHide.iteration,checkpoint_while_hidden:pausedCheckpoint.iteration,checkpoint_after_return:afterReturn.iteration,hidden_pause_terminated_worker:true,
