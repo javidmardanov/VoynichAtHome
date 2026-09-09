@@ -8,11 +8,11 @@ self.onmessage=async({data}:{data:Message})=>{
   if(busy)return;busy=true;
   try {
     const {lease}=data,work=Work.parse(lease.work),job=validateScientificWork(work,data.job),approved=approvedRelease(work.release_id,job);
-    if(await identity(work)!==lease.unit_id || await identity(job)!==work.input_digest)throw Error('The task does not match its published identity. Work stopped.');
-    if(work.release_id!==approved.id||lease.release.id!==approved.id||lease.release.digest!==approved.digest||lease.release.url!==approved.url)throw Error('The project software for this task is no longer approved. Saved work cannot continue.');
-    const response=await fetch(approved.url);if(!response.ok)throw Error('The project software for this task could not be loaded. Your checkpoint remains saved.');
+    if(await identity(work)!==lease.unit_id || await identity(job)!==work.input_digest)throw Error('The task ID does not match its published input. Work stopped.');
+    if(work.release_id!==approved.id||lease.release.id!==approved.id||lease.release.digest!==approved.digest||lease.release.url!==approved.url)throw Error('The project no longer approves this task’s software release. Saved work cannot continue.');
+    const response=await fetch(approved.url);if(!response.ok)throw Error('Your browser could not load the software for this task. Any saved checkpoint remains in this browser.');
     const bytes=new Uint8Array(await response.arrayBuffer());
-    if(await sha256(bytes)!==approved.digest)throw Error('The downloaded project software does not match its published digest. Work stopped.');
+    if(await sha256(bytes)!==approved.digest)throw Error('The downloaded task software does not match its published digest. Work stopped.');
     const execute=instantiateKernel(await WebAssembly.compile(bytes));
     let checkpoint=data.checkpoint;
     const intensity=Math.min(0.75,Math.max(0.1,data.intensity));
@@ -24,6 +24,6 @@ self.onmessage=async({data}:{data:Message})=>{
       await new Promise(resolve=>setTimeout(resolve,rest));
     }
     const result=execute(finishRequest(job,checkpoint));self.postMessage({type:'result',result});
-  }catch(error){self.postMessage({type:'error',error:error instanceof Error?error.message:'Computation failed.'});}
+  }catch(error){self.postMessage({type:'error',error:error instanceof Error?error.message:'The browser could not complete this task.'});}
   finally{busy=false;}
 };

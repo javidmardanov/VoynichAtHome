@@ -2,7 +2,15 @@
 
 Status: development, with an owner-only [hosted preview](https://voynich-at-home.jenobi.chatgpt.site). Assignments are disabled. No public research release or production readiness is claimed.
 
-The owner renewed the build, test, verification, and deployment request on 9 September UTC, following the 7 September website deferral. Private version 7 is deployed at source `86e87a050a5ba1ad33add7b84dc07633f1b1d97a`. Public campaign launch remains gated on scientific and hosted acceptance. The frozen local study and reproducibility tooling continue; see the [completion ledger](COMPLETION.md).
+The owner renewed the build, test, verification, and deployment request on 9 September UTC, following the 7 September website deferral. Private version 8 is deployed at source `cbbaf5f136d281e70646f2b4ccc8d946401435a3`. Public campaign launch remains gated on scientific and hosted acceptance. The frozen local study and reproducibility tooling continue; see the [completion ledger](COMPLETION.md).
+
+## Private account and maintenance integration
+
+[Version 8 evidence](evidence/private-preview-2026-09-09-auth.json) records 46 local platform tests, clean source/type checks, production and distribution builds, three-browser checks, and a 25-computing-plus-five-waiting load test. All six PR/push CI runs passed for the deployed source, including platform checks on Windows, macOS, and Linux; both CI browser runs passed 30 cases with six planned skips and both load runs credited all 25 clients. The complete local browser pass preceded the final owner-admission correction; that correction passed a focused test in all three engines and the final complete CI runs.
+
+Live verification passed 19 HTTP checks and seven invariants, including the approved WASM hash, disabled assignments, empty campaign list, missing scheduled health, and the distinction between private preview access and an app session. ChatGPT sign-in is enabled through the Sites dispatcher. Its normal browser link reaches OpenAI's login page; the owner's actual authentication and `OWNER_USER_ID` binding remain pending. External Google/GitHub OAuth remains optional and unconfigured.
+
+The release adds signed GitHub OIDC maintenance, duplicate rejection, and guards that isolate restores from account and research writes while allowing parallel result checks. The workflow is gated off and is absent from the default branch. It cannot operate through the private Sites access gate. An initial HTTP probe found that Python's default form content type is rejected before token verification; the following source revision supplies explicit JSON and tests the actual workflow transport. No autonomous hosted maintenance is claimed. Manual dispatches and reruns remain rehearsals, and new leases still require genuine fresh scheduled health.
 
 | Stage | Implemented and checked | Still required |
 |---|---|---|

@@ -73,7 +73,7 @@ export async function status(env: Env) {
 }
 
 export async function lease(env: Env, guest: Guest) {
-  if (guest.blocked) throw new ApiError(403,'This session cannot obtain work.');
+  if (guest.blocked) throw new ApiError(403,'This guest session cannot receive work.');
   if (env.ASSIGNMENTS_ENABLED!=='true') return {state:'idle',message:'New assignments are closed.',retry_after_seconds:300};
   const control=await env.DB.prepare("SELECT stopped FROM controls WHERE id='main'").first<{stopped:number}>();
   if (!control || control.stopped) return {state:'idle',message:'The project has paused new assignments.',retry_after_seconds:300};

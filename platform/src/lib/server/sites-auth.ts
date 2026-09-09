@@ -21,7 +21,7 @@ export function sitesChatGPT(env:Env):BetterAuthPlugin {
     const subject=request.headers.get('oai-authenticated-user-id'),email=request.headers.get('oai-authenticated-user-email');
     if(!subject||!email)throw new APIError('UNAUTHORIZED',{message:'Open ChatGPT sign-in, then return here to finish signing in.'});
     if(!z.string().min(1).max(200).regex(/^[^\s\x00-\x1f\x7f]+$/u).safeParse(subject).success||!z.email().max(254).safeParse(email).success)
-      throw new APIError('UNAUTHORIZED',{message:'The Sites identity is incomplete.'});
+      throw new APIError('UNAUTHORIZED',{message:'ChatGPT sign-in is missing account details. Open ChatGPT sign-in and try again.'});
     const issuer=createLocalAccountIssuer('sites-chatgpt:'+env.AUTH_BASE_URL),adapter=ctx.context.internalAdapter;
     const key={issuer,accountId:subject};
     let owner=await adapter.findAccountOwnerByKey(key);

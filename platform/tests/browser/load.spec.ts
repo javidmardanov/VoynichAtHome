@@ -10,7 +10,7 @@ test('25 simultaneous computing clients finish checked work while five extra cli
     let inputRequests=0;
     await Promise.all(pages.map(async page=>{
       await page.route('**/api/v1/work/*',async route=>{inputRequests++;await gate;await route.continue();});
-      await page.goto('http://127.0.0.1:8899/contribute');await page.getByLabel('Pause when this tab is hidden').uncheck();
+      await page.goto('http://127.0.0.1:8899/contribute');await page.getByLabel('Pause while this tab is hidden and resume when I return').uncheck();
       await page.getByRole('slider').focus();await page.getByRole('slider').press('Home');
     }));
     const submitted=pages.map(page=>page.waitForResponse(r=>new URL(r.url()).pathname==='/api/v1/results'&&r.status()===202,{timeout:200000}).then(async()=>{await page.getByRole('button',{name:'Stop',exact:true}).click();return page;}));

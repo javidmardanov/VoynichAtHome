@@ -16,7 +16,7 @@ export async function withMaintenanceRun<T>(env:Env,invocation:MaintenanceInvoca
     ON CONFLICT(id) DO NOTHING RETURNING id`).bind(invocation.id,invocation.source,JSON.stringify(invocation.identity),mode,now(),mode).first();
   if(!claimed){
     const previous=await env.DB.prepare('SELECT state FROM maintenance_runs WHERE id=?').bind(invocation.id).first<{state:string}>();
-    throw new ApiError(409,previous?'This invocation is already recorded as '+previous.state+'.':'Another maintenance or restoration invocation is still running.');
+    throw new ApiError(409,previous?'This invocation is already recorded as '+previous.state+'.':'Other work is still running. Try again after it finishes.');
   }
   const scoped={...env};scopes.set(scoped,mode);
   try{

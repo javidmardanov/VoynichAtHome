@@ -30,7 +30,7 @@ jobs:
           request = urllib.request.Request(token_url, headers={'Authorization': 'Bearer ' + os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']})
           with http.open(request, timeout=30) as response:
               token = json.load(response)['value']
-          request = urllib.request.Request(endpoint, data=b'', method='POST', headers={'Authorization': 'Bearer ' + token})
+          request = urllib.request.Request(endpoint, data=b'{}', method='POST', headers={'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json'})
           try:
               with http.open(request, timeout=480) as response:
                   result = json.load(response)

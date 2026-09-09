@@ -2,7 +2,35 @@ import { test,expect } from '@playwright/test';
 import { readFile,writeFile,mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { spawnSync,spawn } from 'node:child_process';
+import {createServer} from 'node:http';
 import { identity } from '../../src/lib/contracts';
+test('the actual hosted workflow transport reaches the signed-token verifier',async({},info)=>{
+  test.skip(info.project.name!=='chromium','The same Python workflow transport runs independently of browser engines.');
+  const endpoint='http://127.0.0.1:8899/api/maintenance/github';
+  const workflow=await readFile('../.github/workflows/maintenance.yml','utf8');
+  const match=workflow.match(/( +)python3 - <<'PY'\r?\n([\s\S]*?)\r?\n\s+PY/)!;
+  const script=match[2].split('\n').map(line=>line.slice(match[1].length)).join('\n');
+  let requestedAudience='',requestedAuthorization='';
+  const oidc=createServer((request,response)=>{
+    requestedAudience=new URL(request.url!,'http://fixture').searchParams.get('audience')??'';
+    requestedAuthorization=request.headers.authorization??'';
+    response.setHeader('Content-Type','application/json');response.end(JSON.stringify({value:'fixture-unsigned-identity'}));
+  });
+  await new Promise<void>(resolve=>oidc.listen(0,'127.0.0.1',resolve));
+  try{
+    const port=(oidc.address() as {port:number}).port;
+    const result=await new Promise<{code:number|null;output:string}>((resolve,reject)=>{
+      const child=spawn(process.platform==='win32'?'python':'python3',['-c',script],{signal:AbortSignal.timeout(30000),env:{...process.env,MAINTENANCE_ENDPOINT:endpoint,
+        ACTIONS_ID_TOKEN_REQUEST_URL:`http://127.0.0.1:${port}/?fixture=1`,ACTIONS_ID_TOKEN_REQUEST_TOKEN:'fixture-runner-token'}});
+      let output='';child.stdout.on('data',data=>output+=data);child.stderr.on('data',data=>output+=data);
+      child.on('error',reject);child.on('close',code=>resolve({code,output}));
+    });
+    expect(requestedAudience).toBe(endpoint);expect(requestedAuthorization).toBe('Bearer fixture-runner-token');
+    // Config is deliberately absent: reaching its 503 proves SvelteKit accepted the
+    // actual workflow's content type, instead of blocking a form POST before auth.
+    expect(result.code).toBe(1);expect(result.output.trim()).toBe('Maintenance endpoint returned HTTP 503');
+  }finally{await new Promise<void>((resolve,reject)=>oidc.close(error=>error?reject(error):resolve()));}
+});
 test('public pages, keyboard access, and mobile layout',async({page})=>{
   for(const route of ['/','/methods','/experiments','/community','/account','/verify','/downloads','/privacy','/status','/research/development']){
     const response=await page.goto(route);expect(response?.status()).toBe(200);await expect(page.locator('h1')).toHaveCount(1);
@@ -15,7 +43,7 @@ test('public pages, keyboard access, and mobile layout',async({page})=>{
 });
 test('Start, Pause, Stop, and reload preserve bounded work without automatic execution',async({page})=>{
   await page.goto('/contribute');await page.getByRole('button',{name:/^(Check for a task|Check saved work|Resume)$/}).click();
-  await expect(page.getByRole('status')).toHaveText('Running one task. You can pause at any time and resume from the last saved checkpoint.',{timeout:30000});
+  await expect(page.getByRole('status')).toHaveText('Running one task. You can pause at any time and resume from any saved checkpoint.',{timeout:30000});
   await expect.poll(()=>page.workers().length).toBe(1);
   await page.getByRole('button',{name:'Pause',exact:true}).click();await expect.poll(()=>page.workers().length).toBe(0);
   await expect(page.getByRole('status')).toContainText('Paused.');
@@ -29,10 +57,10 @@ test('verification file controls wait for the page to initialize',async({page})=
   try{
     await page.goto('/verify',{waitUntil:'commit'});
     await expect(page.getByLabel('Scientific input file (JSON)')).toBeDisabled();
-    await expect(page.getByLabel('Result record file (JSON)',{exact:true})).toBeDisabled();
+    await expect(page.getByLabel('Recorded result file (JSON)',{exact:true})).toBeDisabled();
   }finally{initialize();}
   await expect(page.getByLabel('Scientific input file (JSON)')).toBeEnabled();
-  await expect(page.getByLabel('Result record file (JSON)',{exact:true})).toBeEnabled();
+  await expect(page.getByLabel('Recorded result file (JSON)',{exact:true})).toBeEnabled();
 });
 
 test('browser verification reproduces native output',async({page},info)=>{
@@ -42,7 +70,7 @@ test('browser verification reproduces native output',async({page},info)=>{
     const job={...base,encoding,algorithm,iterations:257,symbol_count:encoding==='substitution'?23:46,ciphertext:base.ciphertext.map((c:number,i:number)=>c+(encoding!=='substitution'&&i%2?23:0))};
     const input=resolve(folder+'/job.json'),output=resolve(folder+'/result.json');await writeFile(input,JSON.stringify(job));
     const command=spawnSync(resolve('../kernel/target/release/vah-search'+(process.platform==='win32'?'.exe':'')),['run','--job',input,'--out',output]);expect(command.status).toBe(0);
-    await page.goto('/verify');await expect(page.getByLabel('Scientific input file (JSON)')).toBeEnabled();await page.getByLabel('Scientific input file (JSON)').setInputFiles(input);await page.getByLabel('Result record file (JSON)',{exact:true}).setInputFiles(output);
+    await page.goto('/verify');await expect(page.getByLabel('Scientific input file (JSON)')).toBeEnabled();await page.getByLabel('Scientific input file (JSON)').setInputFiles(input);await page.getByLabel('Recorded result file (JSON)',{exact:true}).setInputFiles(output);
     await page.getByRole('button',{name:'Replay and compare'}).click();await expect(page.getByRole('status')).toContainText('The replay matches the complete recorded result.',{timeout:30000});
   }
 });
@@ -56,7 +84,7 @@ test('browser verification also reproduces generation and verification work',asy
   for(const input of inputs){
     const result=await native(input.version==='vah-generation-input-1'?{op:'generate',input}:{op:'verify',job:base,result:original});
     const jobFile=resolve(folder,'input.json'),resultFile=resolve(folder,'result.json');await writeFile(jobFile,JSON.stringify(input));await writeFile(resultFile,JSON.stringify(result));
-    await page.goto('/verify');await expect(page.getByLabel('Scientific input file (JSON)')).toBeEnabled();await page.getByLabel('Scientific input file (JSON)').setInputFiles(jobFile);await page.getByLabel('Result record file (JSON)',{exact:true}).setInputFiles(resultFile);
+    await page.goto('/verify');await expect(page.getByLabel('Scientific input file (JSON)')).toBeEnabled();await page.getByLabel('Scientific input file (JSON)').setInputFiles(jobFile);await page.getByLabel('Recorded result file (JSON)',{exact:true}).setInputFiles(resultFile);
     await page.getByRole('button',{name:'Replay and compare'}).click();await expect(page.getByRole('status')).toContainText('The replay matches the complete recorded result.',{timeout:30000});
   }
 });
@@ -120,7 +148,7 @@ test('a lost submission acknowledgement survives offline mode and reload without
 
 test('unsupported devices receive a clear message and cannot start a worker',async({page})=>{
   await page.addInitScript(()=>{Object.defineProperty(window,'WebAssembly',{value:undefined});});
-  await page.goto('/contribute');await expect(page.getByText('Browser participation requires WebAssembly', {exact:false})).toBeVisible();
+  await page.goto('/contribute');await expect(page.getByText('This browser cannot run volunteer tasks', {exact:false})).toBeVisible();
   await expect(page.getByRole('button',{name:/^(Check for a task|Check saved work|Resume)$/})).toBeDisabled();expect(page.workers()).toHaveLength(0);
 });
 
@@ -160,7 +188,7 @@ test('profiles, guest attachment, teams, session revocation, and deletion work t
   await page.getByRole('button',{name:'Save profile'}).click();
   await expect(page.getByRole('status')).toHaveText('Profile saved.');
   let community=await (await page.request.get('/api/v1/community')).json();expect(community.people.some((p:any)=>p.display_name==='Participant '+info.project.name)).toBe(false);
-  await page.getByLabel('Show my name, checked credit, and team membership publicly').check();await page.getByRole('button',{name:'Save profile'}).click();await expect(page.getByRole('status')).toHaveText('Profile saved.');
+  await page.getByLabel('Publish my name, checked credit, and team membership').check();await page.getByRole('button',{name:'Save profile'}).click();await expect(page.getByRole('status')).toHaveText('Profile saved.');
   await page.getByLabel('New team name').fill('Team '+info.project.name);await page.getByRole('button',{name:'Create team'}).click();await expect(page.getByRole('status')).toHaveText('Team created.');
   await page.getByRole('button',{name:'Leave team',exact:true}).click();await expect(page.getByRole('status')).toHaveText('You left the team.');
   await page.getByRole('button',{name:'Sign out other devices'}).click();await expect(page.getByRole('status')).toHaveText('Other devices have been signed out.');

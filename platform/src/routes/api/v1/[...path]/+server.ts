@@ -45,8 +45,8 @@ const handler:RequestHandler=async(event)=>{
       if(guest)await env.DB.prepare('UPDATE guests SET token_hash=NULL WHERE id=?').bind(guest.id).run();
       cookies.delete('vah_guest',{path:'/'});return json({revoked:true});
     }
-    if(path==='work'&&request.method==='POST'){if(!guest)throw new ApiError(401,'Start a guest session first.');return json(await lease(env,guest));}
-    if(path.startsWith('work/')&&!mutating){if(!guest)throw new ApiError(401,'Guest session required.');return json(await readInput(env,path.slice(5),guest));}
+    if(path==='work'&&request.method==='POST'){if(!guest)throw new ApiError(401,'Start a guest session before requesting a task.');return json(await lease(env,guest));}
+    if(path.startsWith('work/')&&!mutating){if(!guest)throw new ApiError(401,'A guest session is required to download task input.');return json(await readInput(env,path.slice(5),guest));}
     if(path==='results'&&request.method==='POST'){
       if(!guest)throw new ApiError(401,'Guest session required.');
       const receipt=await submit(env,guest,await body(request));
@@ -81,7 +81,7 @@ const handler:RequestHandler=async(event)=>{
       const records=await env.DB.prepare('SELECT id,specification,state,trusted_result,trusted_hash FROM units WHERE campaign_id=? AND id>? ORDER BY id LIMIT 50').bind(campaign.id,after).all();
       return json({campaign,records:records.results,next:records.results.length===50?records.results.at(-1)?.id:null});
     }
-    throw new ApiError(404,'Interface not found.');
+    throw new ApiError(404,'API endpoint not found.');
   }catch(error){
     if(error instanceof ZodError)return json({error:'Input does not match the versioned contract.',fields:error.issues.map(i=>i.path.join('.')).slice(0,20)},{status:422});
     if(error instanceof ApiError)return json({error:error.message},{status:error.status});

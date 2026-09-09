@@ -6,5 +6,5 @@ import type { ScientificInput } from './contracts';
 export function approvedRelease(id:string,input:ScientificInput){
   if(id===current.id)return current;
   if(id===searchCompatibility.id&&input.version==='vah-search-1')return searchCompatibility;
-  throw Error('Restore the compatible approved release for this work type.');
+  throw Error('This task’s software release is not available. The project must restore a compatible approved release before this task can resume.');
 }

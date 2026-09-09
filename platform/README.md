@@ -39,7 +39,7 @@ Run `npm run reproduce -- --server https://PROJECT --campaign ID --out ./campaig
 
 ## Authentication and recognition
 
-Better Auth uses Google/GitHub when their credentials and an authentication secret are configured. No provider buttons are shown otherwise. There is no owner bypass password or fabricated sign-in. Set `OWNER_USER_ID` to the real Better Auth user ID after the owner signs in. Profile visibility is explicit opt-in. Guest attachment proves a current HttpOnly cookie and changes a reference; it never copies credit.
+Better Auth supports Google/GitHub with configured provider credentials, or ChatGPT through the Sites dispatcher with `SITES_AUTH_ENABLED=true`. All require the existing authentication secret and exact `AUTH_BASE_URL`. Enable Sites identity headers only on the trusted HTTPS Sites origin. The ChatGPT flow uses an explicit sign-in POST and creates revocable app sessions; visiting a page does not sign a user back in. Set `OWNER_USER_ID` to the real app user ID after normal browser sign-in. Profile visibility is opt-in, and guest attachment links existing credit without copying it. Follow the [owner setup guide](../docs/OWNER-SETUP.md) for identity binding and provider configuration.
 
 Checked credit uses `ceil(iterations * ciphertext_symbols / 1000)` for the current search worker. Full trusted replay must match the submitted result. Two checked attempts complete a unit, but guest identifiers do not prove independent computers. Validation errors and scientific interpretations are separate fields.
 
@@ -50,6 +50,8 @@ Scientific reports use `vah-scientific-report-1` and the `publish-report` owner 
 Manuscript campaigns require a published recovery report with a reviewed 100-case operating range. Their `search_condition` must exactly match its encoding, language, model digest, length, algorithm and budget. The layout records contiguous line offsets, folios, paragraphs, uncertainty positions, grouping, spaces and exclusions. Work imports must match that passage and condition. A nonempty list of invented evidence digests is insufficient. Matching these fields establishes eligibility under the owner-reviewed protocol; it does not establish a manuscript reading.
 
 `worker.ts` wraps the SvelteKit Worker with a statically imported, digest-identified WASM module. Its scheduled handler resumes pending checks and makes daily private R2 backups with 30-day retention. A direct Cloudflare deployment uses `wrangler.deploy.jsonc`; replace local resource IDs with the owner's actual bindings before deployment. Confirm that the chosen hosting environment provisions the scheduled trigger; exporting a handler alone does not schedule it.
+
+The optional GitHub maintenance workflow uses a short-lived, signed OIDC token and an exact workflow identity pinned in the Site runtime. It starts disabled and needs a normally reachable endpoint. Manual runs perform maintenance but do not refresh autonomous schedule health. New leases require a genuine scheduled success within 20 minutes. The [setup guide](../docs/OWNER-SETUP.md) covers source-pin updates, shared/exclusive execution guards, and recovery after an interrupted invocation.
 
 Owner operations are strict JSON requests to `/api/v1/owner` and are available in the owner page. Work imports accept only the kernel in the current deployment. Revoking a release blocks assignments and credit for it. Older unverified work requires restoring its compatible verifier; it must not silently run under a different release.
 
